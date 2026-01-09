@@ -43,43 +43,33 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATIONS = 3
 
         private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#332E67"),
-            Color.parseColor("#302B62"),
-            Color.parseColor("#2D285D"),
-            Color.parseColor("#2A2558"),
-            Color.parseColor("#272353"),
-            Color.parseColor("#24204E"),
-            Color.parseColor("#211D49"),
-            Color.parseColor("#1E1A44"),
-            Color.parseColor("#1B173F"),
-            Color.parseColor("#18143A"),
-            Color.parseColor("#151135"),
-            Color.parseColor("#120E30"),
-            Color.parseColor("#0F0B2B"),
-            Color.parseColor("#0C0826"),
-            Color.parseColor("#090521"),
-            Color.parseColor("#060807")
+            Color.parseColor("#252040"),
+            Color.parseColor("#201C36"),
+            Color.parseColor("#1B182E"),
+            Color.parseColor("#161426"),
+            Color.parseColor("#11101E"),
+            Color.parseColor("#0C0C16"),
+            Color.parseColor("#080810"),
+            Color.parseColor("#040408"),
+            Color.BLACK
         )
 
         private val ON_COLORS = intArrayOf(
-            Color.parseColor("#0F4D34"),
-            Color.parseColor("#0E4932"),
-            Color.parseColor("#0D4530"),
-            Color.parseColor("#0C412E"),
-            Color.parseColor("#0B3D2C"),
-            Color.parseColor("#0A392A"),
-            Color.parseColor("#093528"),
-            Color.parseColor("#083126"),
-            Color.parseColor("#072D24"),
-            Color.parseColor("#062922"),
-            Color.parseColor("#052520"),
-            Color.parseColor("#04211E"),
-            Color.parseColor("#031D1C"),
-            Color.parseColor("#02191A"),
-            Color.parseColor("#011518"),
-            Color.parseColor("#001116"),
-            Color.parseColor("#060807")
+            Color.parseColor("#083621"),
+            Color.parseColor("#072E1C"),
+            Color.parseColor("#062617"),
+            Color.parseColor("#051E13"),
+            Color.parseColor("#04170E"),
+            Color.parseColor("#03100A"),
+            Color.parseColor("#020906"),
+            Color.parseColor("#010503"),
+            Color.BLACK
         )
+
+        private fun collectLogs(): String? =
+            try {
+                Runtime.getRuntime().exec("logcat *:D -d").inputStream.bufferedReader().use { it.readText() }
+            } catch (e: Exception) { null }
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -93,7 +83,7 @@ class MainActivity : Activity() {
         
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#060807")
+        window.navigationBarColor = Color.BLACK
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -112,29 +102,29 @@ class MainActivity : Activity() {
 
         statusText = TextView(this).apply {
             textSize = 22f
-            setTextColor(Color.parseColor("#A0A0A0"))
+            setTextColor(Color.parseColor("#909090"))
             gravity = Gravity.CENTER
-            setPadding(0, 250, 0, 0)
+            setPadding(0, 250, 0, 0) 
         }
 
         powerButton = ImageButton(this).apply {
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
                     val paint = Paint().apply {
-                        color = Color.WHITE
+                        color = Color.parseColor("#E0E0E0")
                         style = Paint.Style.STROKE
-                        strokeWidth = 8f
+                        strokeWidth = 7f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(12f, 0f, 2f, Color.parseColor("#40000000"))
+                        setShadowLayer(12f, 0f, 0f, Color.parseColor("#60000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
-                    val r = w / 3.5f
-                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 20f, 320f, false, paint)
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
+                    val r = w / 3.6f
+                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 25f, 310f, false, paint)
+                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.45f, paint)
                 }
                 override fun setAlpha(alpha: Int) {}
                 override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
@@ -243,28 +233,23 @@ class MainActivity : Activity() {
 
         if (status == AppStatus.Running) {
             statusText.text = "Подключён"
-            statusText.setTextColor(Color.parseColor("#4AE68A"))
+            statusText.setTextColor(Color.parseColor("#2ECC71"))
             
             val onGradient = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 ON_COLORS
-            ).apply {
-                    cornerRadius = 0f
-                    alpha = 220
-            }
+            )
             mainLayout.background = onGradient
             
             val glow = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#104AE68A"))
-                setStroke(6, Color.parseColor("#4AE68A"))
-                alpha = 180
+                setColor(Color.parseColor("#102ECC71"))
+                setStroke(5, Color.parseColor("#2ECC71"))
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#304AE68A"))
-                setStroke(6, Color.parseColor("#4AE68A"))
-                alpha = 220
+                setColor(Color.parseColor("#252ECC71"))
+                setStroke(5, Color.parseColor("#2ECC71"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
@@ -273,28 +258,23 @@ class MainActivity : Activity() {
             
         } else {
             statusText.text = "Нет связи"
-            statusText.setTextColor(Color.parseColor("#A0A0A0"))
+            statusText.setTextColor(Color.parseColor("#909090"))
             
             val offGradient = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 OFF_COLORS
-            ).apply {
-                cornerRadius = 0f
-                alpha = 200
-            }
+            )
             mainLayout.background = offGradient
             
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#30FFFFFF"))
-                alpha = 180
+                setStroke(2, Color.parseColor("#30FFFFFF"))
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#15FFFFFF"))
-                setStroke(3, Color.parseColor("#50FFFFFF"))
-                alpha = 200
+                setStroke(2, Color.parseColor("#50FFFFFF"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
