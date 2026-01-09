@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val abis = setOf("arm64-v8a")
+val abis = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 
 android {
     namespace = "io.github.dovecoteescapee.byedpi"
@@ -18,9 +18,7 @@ android {
         versionCode = 1690
         versionName = "1.6.9"
 
-        ndk {
-            abiFilters.addAll(abis)
-        }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -62,14 +60,20 @@ android {
         includeInApk = false
         includeInBundle = false
     }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include(*abis.toTypedArray())
+            isUniversalApk = true
+        }
+    }
 }
 
 dependencies {
-    // Оставляем только самый минимум
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
-    
-    // УДАЛЕНО: appcompat
 }
 
 tasks.register<Exec>("runNdkBuild") {
