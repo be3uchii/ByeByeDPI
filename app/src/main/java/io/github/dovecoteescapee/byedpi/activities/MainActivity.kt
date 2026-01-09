@@ -53,8 +53,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         hideSystemUI()
 
-        // 1. Фон (Градиент)
-        val background = GradientDrawable(
+        // 1. Фон (Градиент) - ПЕРЕИМЕНОВАЛИ ПЕРЕМЕННУЮ
+        val mainGradient = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.parseColor("#1A2980"), Color.parseColor("#26D0CE"))
         )
@@ -64,7 +64,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(60, 60, 60, 60)
-            this.background = background
+            this.background = mainGradient // Используем переименованную переменную
         }
 
         // 3. Текст статуса
@@ -81,7 +81,6 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             isAllCaps = false
             
-            // Создаем разные drawable для состояний
             val normal = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadius = 100f
@@ -96,7 +95,8 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
             states.addState(intArrayOf(), normal)
             
-            background = states // Присваиваем StateListDrawable в background (тип Drawable) - теперь ошибок не будет
+            // Теперь this.background относится к кнопке, конфликта имен нет
+            this.background = states 
             
             layoutParams = LinearLayout.LayoutParams(600, 180)
         }
