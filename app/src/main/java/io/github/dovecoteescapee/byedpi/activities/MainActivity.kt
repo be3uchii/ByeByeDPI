@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
@@ -30,7 +29,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
@@ -43,11 +41,10 @@ class MainActivity : Activity() {
     private lateinit var contentLayout: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var powerButton: ImageButton
-    private lateinit var orbitSpinner: ProgressBar
     private lateinit var timerText: TextView
     private lateinit var trafficText: TextView
+    private lateinit var proxyAddress: TextView
     
-    private var isProcessing = false
     private var hasAutoStarted = false
     private var isTvMode = false
     private val handler = Handler(Looper.getMainLooper())
@@ -100,7 +97,7 @@ class MainActivity : Activity() {
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (!isProcessing && intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
+            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
                 updateUIState()
             }
         }
@@ -127,6 +124,9 @@ class MainActivity : Activity() {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
         window.navigationBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
 
         mainContainer = FrameLayout(this)
         
@@ -142,27 +142,12 @@ class MainActivity : Activity() {
             setPadding(0, if (isTvMode) 40 else 200, 0, 0) 
         }
 
-        val btnSize = if (isTvMode) 280 else 400
-        val spinnerSize = if (isTvMode) 380 else 550
-        val btnMargin = if (isTvMode) 20 else 200
-
-        val centerBox = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(spinnerSize, spinnerSize).apply {
-                topMargin = btnMargin 
-            }
-        }
-
-        orbitSpinner = ProgressBar(this).apply {
-            visibility = View.INVISIBLE
-            indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
-            layoutParams = FrameLayout.LayoutParams(spinnerSize, spinnerSize).apply {
-                gravity = Gravity.CENTER
-            }
-        }
+        val btnSize = if (isTvMode) 280 else 450
+        val btnMargin = if (isTvMode) 20 else 150
 
         powerButton = ImageButton(this).apply {
             isFocusable = true
-            isFocusableInTouchMode = true
+            isFocusableInTouchMode = isTvMode
             
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
@@ -203,19 +188,19 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(), normal)
             background = states
             
-            layoutParams = FrameLayout.LayoutParams(btnSize, btnSize).apply {
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
                 gravity = Gravity.CENTER
+                topMargin = btnMargin
             }
         }
 
         timerText = TextView(this).apply {
-            textSize = if (isTvMode) 24f else 32f
+            textSize = if (isTvMode) 24f else 36f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             text = "00:00:00"
-            alpha = 0f 
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = if (isTvMode) 20 else 80
+            params.topMargin = if (isTvMode) 20 else 100
             layoutParams = params
         }
 
@@ -223,20 +208,26 @@ class MainActivity : Activity() {
             textSize = if (isTvMode) 12f else 14f
             setTextColor(Color.parseColor("#80FFFFFF"))
             gravity = Gravity.CENTER
-            text = "↓ 0 MB   ↑ 0 MB"
-            alpha = 0f
+            text = "↓ 0 B   ↑ 0 B"
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             params.topMargin = 20
             layoutParams = params
         }
 
-        centerBox.addView(orbitSpinner)
-        centerBox.addView(powerButton)
+        proxyAddress = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.parseColor("#30FFFFFF"))
+            gravity = Gravity.CENTER
+            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            params.topMargin = if (isTvMode) 20 else 100
+            layoutParams = params
+        }
 
         contentLayout.addView(statusText)
-        contentLayout.addView(centerBox)
+        contentLayout.addView(powerButton)
         contentLayout.addView(timerText)
         contentLayout.addView(trafficText)
+        contentLayout.addView(proxyAddress)
 
         mainContainer.addView(contentLayout)
         setContentView(mainContainer)
@@ -254,7 +245,13 @@ class MainActivity : Activity() {
         }
 
         powerButton.setOnClickListener {
-            handleUserClick()
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            powerButton.isClickable = false
+            
+            val (status, _) = appStatus
+            if (status == AppStatus.Halted) start() else stop()
+            
+            powerButton.postDelayed({ powerButton.isClickable = true }, 300)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -272,7 +269,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (!isProcessing) updateUIState()
+        updateUIState()
         if (appStatus.first == AppStatus.Running) {
             restoreSessionData()
             handler.post(updateRunnable)
@@ -293,27 +290,6 @@ class MainActivity : Activity() {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
         }
-    }
-
-    private fun handleUserClick() {
-        if (isProcessing) return
-        isProcessing = true
-        powerButton.isEnabled = false
-        powerButton.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-        
-        orbitSpinner.visibility = View.VISIBLE
-        val futureColor = if (appStatus.first == AppStatus.Halted) "#2ECC71" else "#A0A0A0"
-        orbitSpinner.indeterminateTintList = ColorStateList.valueOf(Color.parseColor(futureColor))
-
-        mainContainer.postDelayed({
-            val (status, _) = appStatus
-            if (status == AppStatus.Halted) start() else stop()
-            updateUIState()
-            orbitSpinner.visibility = View.INVISIBLE
-            isProcessing = false
-            powerButton.isEnabled = true
-            if (isTvMode) powerButton.requestFocus()
-        }, 2000)
     }
 
     private fun start() {
@@ -343,6 +319,7 @@ class MainActivity : Activity() {
         ServiceManager.stop(this)
         getPreferences().edit().remove("session_start").remove("session_rx").remove("session_tx").apply()
         handler.removeCallbacks(updateRunnable)
+        updateTimerAndTraffic(true) 
     }
 
     private fun restoreSessionData() {
@@ -352,7 +329,13 @@ class MainActivity : Activity() {
         startTx = prefs.getLong("session_tx", TrafficStats.getUidTxBytes(Process.myUid()))
     }
 
-    private fun updateTimerAndTraffic() {
+    private fun updateTimerAndTraffic(reset: Boolean = false) {
+        if (reset) {
+            timerText.text = "00:00:00"
+            trafficText.text = "↓ 0 B   ↑ 0 B"
+            return
+        }
+        
         val duration = System.currentTimeMillis() - startTime
         val seconds = (duration / 1000) % 60
         val minutes = (duration / (1000 * 60)) % 60
@@ -361,8 +344,8 @@ class MainActivity : Activity() {
 
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
-        val rx = currentRx - startRx
-        val tx = currentTx - startTx
+        val rx = if (currentRx > startRx) currentRx - startRx else 0
+        val tx = if (currentTx > startTx) currentTx - startTx else 0
         trafficText.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
     }
 
@@ -375,6 +358,10 @@ class MainActivity : Activity() {
 
     private fun updateUIState() {
         val (status, _) = appStatus
+        val prefs = getPreferences()
+        val (ip, port) = prefs.getProxyIpAndPort()
+
+        proxyAddress.text = "$ip:$port"
 
         if (status == AppStatus.Running) {
             statusText.text = "Подключён"
@@ -400,8 +387,6 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(), glow)
             powerButton.background = states
             
-            timerText.alpha = 1f
-            trafficText.alpha = 1f
             if (!handler.hasMessages(0)) handler.post(updateRunnable)
             
         } else {
@@ -415,12 +400,12 @@ class MainActivity : Activity() {
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(2, Color.parseColor("#30FFFFFF"))
+                setStroke(3, Color.parseColor("#40FFFFFF"))
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#15FFFFFF"))
-                setStroke(2, Color.parseColor("#50FFFFFF"))
+                setColor(Color.parseColor("#20FFFFFF"))
+                setStroke(3, Color.parseColor("#60FFFFFF"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
@@ -428,9 +413,7 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(), normal)
             powerButton.background = states
             
-            timerText.alpha = 0f
-            trafficText.alpha = 0f
-            handler.removeCallbacks(updateRunnable)
+            updateTimerAndTraffic(true)
         }
     }
 }
