@@ -1,11 +1,8 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.ByeDPI" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@android:color/holo_blue_light</item>
-        <item name="colorPrimaryDark">@android:color/holo_blue_dark</item>
-        <item name="colorAccent">@android:color/holo_blue_bright</item>
-        <!-- Customize your theme here. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryDark</item>
+    <!-- Используем встроенную тему устройства. Легкая и быстрая. -->
+    <style name="Theme.ByeDPI" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <!-- Цвета берутся системные, переопределять не обязательно, но можно -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
