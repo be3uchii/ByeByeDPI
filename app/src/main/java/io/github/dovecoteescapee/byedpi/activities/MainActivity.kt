@@ -11,8 +11,6 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -152,19 +150,6 @@ class MainActivity : BaseActivity() {
             }, 1000)
         }
 
-        binding.openEditorLink.setOnClickListener {
-            val (status, _) = appStatus
-
-            if (status == AppStatus.Halted) {
-                val intent = Intent(this, SettingsActivity::class.java)
-                val useCmdSettings = getPreferences().getBoolean("byedpi_enable_cmd_settings", false)
-                intent.putExtra("open_fragment", if (useCmdSettings) "cmd" else "ui")
-                startActivity(intent)
-            } else {
-                Toast.makeText(this, R.string.settings_unavailable, Toast.LENGTH_SHORT).show()
-            }
-        }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
@@ -184,48 +169,6 @@ class MainActivity : BaseActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val (status, _) = appStatus
-
-        return when (item.itemId) {
-            R.id.action_settings -> {
-                if (status == AppStatus.Halted) {
-                    val intent = Intent(this, SettingsActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    Toast.makeText(this, R.string.settings_unavailable, Toast.LENGTH_SHORT).show()
-                }
-                true
-            }
-
-            R.id.action_save_logs -> {
-                val intent =
-                    Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TITLE, "byedpi.log")
-                    }
-
-                logsRegister.launch(intent)
-                true
-            }
-
-            R.id.action_close_app -> {
-                if (status == AppStatus.Running) stop()
-                finishAffinity()
-                android.os.Process.killProcess(android.os.Process.myPid())
-                exitProcess(0)
-            }
-
-            else -> super.onOptionsItemSelected(item)
-        }
     }
 
     private fun start() {
