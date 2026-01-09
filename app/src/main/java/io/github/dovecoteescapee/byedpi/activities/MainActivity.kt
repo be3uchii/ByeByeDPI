@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
@@ -123,6 +124,7 @@ class MainActivity : Activity() {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
+        // Делаем навигацию черной, чтобы сливалась с фоном
         window.navigationBarColor = Color.BLACK
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -142,7 +144,7 @@ class MainActivity : Activity() {
             setPadding(0, if (isTvMode) 40 else 200, 0, 0) 
         }
 
-        val btnSize = if (isTvMode) 280 else 450
+        val btnSize = if (isTvMode) 280 else 400
         val btnMargin = if (isTvMode) 20 else 150
 
         powerButton = ImageButton(this).apply {
@@ -195,12 +197,12 @@ class MainActivity : Activity() {
         }
 
         timerText = TextView(this).apply {
-            textSize = if (isTvMode) 24f else 36f
+            textSize = if (isTvMode) 24f else 32f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             text = "00:00:00"
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = if (isTvMode) 20 else 100
+            params.topMargin = if (isTvMode) 20 else 80
             layoutParams = params
         }
 
@@ -219,7 +221,8 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#30FFFFFF"))
             gravity = Gravity.CENTER
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = if (isTvMode) 20 else 100
+            // Уменьшили отступ, чтобы было ближе к трафику
+            params.topMargin = 40 
             layoutParams = params
         }
 
@@ -300,7 +303,11 @@ class MainActivity : Activity() {
         startTx = TrafficStats.getUidTxBytes(Process.myUid())
         
         val prefs = getPreferences()
-        prefs.edit().putLong("session_start", startTime).putLong("session_rx", startRx).putLong("session_tx", startTx).apply()
+        prefs.edit()
+            .putLong("session_start", startTime)
+            .putLong("session_rx_start", startRx)
+            .putLong("session_tx_start", startTx)
+            .apply()
 
         when (prefs.mode()) {
             Mode.VPN -> {
@@ -317,7 +324,11 @@ class MainActivity : Activity() {
 
     private fun stop() {
         ServiceManager.stop(this)
-        getPreferences().edit().remove("session_start").remove("session_rx").remove("session_tx").apply()
+        getPreferences().edit()
+            .remove("session_start")
+            .remove("session_rx_start")
+            .remove("session_tx_start")
+            .apply()
         handler.removeCallbacks(updateRunnable)
         updateTimerAndTraffic(true) 
     }
@@ -325,8 +336,8 @@ class MainActivity : Activity() {
     private fun restoreSessionData() {
         val prefs = getPreferences()
         startTime = prefs.getLong("session_start", System.currentTimeMillis())
-        startRx = prefs.getLong("session_rx", TrafficStats.getUidRxBytes(Process.myUid()))
-        startTx = prefs.getLong("session_tx", TrafficStats.getUidTxBytes(Process.myUid()))
+        startRx = prefs.getLong("session_rx_start", TrafficStats.getUidRxBytes(Process.myUid()))
+        startTx = prefs.getLong("session_tx_start", TrafficStats.getUidTxBytes(Process.myUid()))
     }
 
     private fun updateTimerAndTraffic(reset: Boolean = false) {
@@ -344,8 +355,11 @@ class MainActivity : Activity() {
 
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
+        
+        // Считаем от момента запуска
         val rx = if (currentRx > startRx) currentRx - startRx else 0
         val tx = if (currentTx > startTx) currentTx - startTx else 0
+        
         trafficText.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
     }
 
@@ -400,12 +414,12 @@ class MainActivity : Activity() {
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#40FFFFFF"))
+                setStroke(2, Color.parseColor("#30FFFFFF"))
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#20FFFFFF"))
-                setStroke(3, Color.parseColor("#60FFFFFF"))
+                setColor(Color.parseColor("#15FFFFFF"))
+                setStroke(2, Color.parseColor("#50FFFFFF"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
