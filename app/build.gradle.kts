@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val abis = setOf("arm64-v8a") // Только для новых телефонов и ТВ
+val abis = setOf("arm64-v8a")
 
 android {
     namespace = "io.github.dovecoteescapee.byedpi"
@@ -31,7 +31,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            isShrinkResources = true // Удаляет неиспользуемые картинки и xml
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
@@ -65,12 +65,11 @@ android {
 }
 
 dependencies {
-    // Оставляем только базовые системные библиотеки
+    // Оставляем только самый минимум
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
     
-    // УДАЛЕНО: Material, Preference, Gson, OkHttp, Fragment
+    // УДАЛЕНО: appcompat
 }
 
 tasks.register<Exec>("runNdkBuild") {
