@@ -48,9 +48,10 @@ class MainActivity : Activity() {
     
     private var isTvMode = false
     private val handler = Handler(Looper.getMainLooper())
-    private var startTimestamp = 0L 
-    private var startRx = 0L
-    private var startTx = 0L
+    
+    private var startTimestamp: Long = 0
+    private var startRx: Long = 0
+    private var startTx: Long = 0
 
     companion object {
         private const val REQUEST_VPN = 1
@@ -257,7 +258,7 @@ class MainActivity : Activity() {
             val (status, _) = appStatus
             if (status == AppStatus.Halted) start() else stop()
             
-            powerButton.postDelayed({ powerButton.isClickable = true }, 300)
+            powerButton.postDelayed({ powerButton.isClickable = true }, 500)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -270,9 +271,9 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        restoreSessionData()
         updateUIState()
         
-        restoreSessionData()
         handler.removeCallbacks(updateRunnable)
         handler.post(updateRunnable)
     }
@@ -290,23 +291,16 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
+            refreshSessionStartData()
         }
     }
 
     private fun start() {
         if (appStatus.first == AppStatus.Running) return
         
-        startTimestamp = SystemClock.elapsedRealtime()
-        startRx = TrafficStats.getUidRxBytes(Process.myUid())
-        startTx = TrafficStats.getUidTxBytes(Process.myUid())
-        
-        val prefs = getPreferences()
-        prefs.edit()
-            .putLong("session_start_ts", startTimestamp)
-            .putLong("session_rx_start", startRx)
-            .putLong("session_tx_start", startTx)
-            .apply()
+        refreshSessionStartData()
 
+        val prefs = getPreferences()
         when (prefs.mode()) {
             Mode.VPN -> {
                 val intentPrepare = VpnService.prepare(this)
@@ -318,6 +312,21 @@ class MainActivity : Activity() {
             }
             Mode.Proxy -> ServiceManager.start(this, Mode.Proxy)
         }
+    }
+
+    private fun refreshSessionStartData() {
+        startTimestamp = SystemClock.elapsedRealtime()
+        startRx = TrafficStats.getUidRxBytes(Process.myUid())
+        startTx = TrafficStats.getUidTxBytes(Process.myUid())
+
+        if (startRx == TrafficStats.UNSUPPORTED.toLong()) startRx = 0
+        if (startTx == TrafficStats.UNSUPPORTED.toLong()) startTx = 0
+        
+        getPreferences().edit()
+            .putLong("session_start_ts", startTimestamp)
+            .putLong("session_rx_start", startRx)
+            .putLong("session_tx_start", startTx)
+            .apply()
     }
 
     private fun stop() {
@@ -335,8 +344,8 @@ class MainActivity : Activity() {
         val prefs = getPreferences()
         if (prefs.contains("session_start_ts")) {
             startTimestamp = prefs.getLong("session_start_ts", SystemClock.elapsedRealtime())
-            startRx = prefs.getLong("session_rx_start", TrafficStats.getUidRxBytes(Process.myUid()))
-            startTx = prefs.getLong("session_tx_start", TrafficStats.getUidTxBytes(Process.myUid()))
+            startRx = prefs.getLong("session_rx_start", 0)
+            startTx = prefs.getLong("session_tx_start", 0)
         }
     }
 
@@ -360,11 +369,15 @@ class MainActivity : Activity() {
     }
     
     private fun resetTimerAndTrafficUI() {
+        startTimestamp = 0
+        startRx = 0
+        startTx = 0
         timerText.text = "00:00:00"
         trafficText.text = "↓ 0 B   ↑ 0 B"
     }
 
     private fun formatBytes(bytes: Long): String {
+        if (bytes < 0) return "0 B"
         if (bytes < 1024) return "$bytes B"
         val exp = (Math.log(bytes.toDouble()) / Math.log(1024.0)).toInt()
         val unit = "KMGTPE"[exp - 1]
