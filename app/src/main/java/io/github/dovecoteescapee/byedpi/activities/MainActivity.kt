@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
@@ -24,10 +23,8 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
@@ -36,14 +33,10 @@ import io.github.dovecoteescapee.byedpi.utility.*
 import java.io.IOException
 
 class MainActivity : Activity() {
-    private lateinit var mainContainer: FrameLayout
-    private lateinit var contentLayout: LinearLayout
+    private lateinit var mainLayout: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var powerButton: ImageButton
-    private lateinit var orbitSpinner: ProgressBar
     private lateinit var proxyAddress: TextView
-    
-    private var isProcessing = false
     private var hasAutoStarted = false
     private var isTvMode = false
 
@@ -52,6 +45,7 @@ class MainActivity : Activity() {
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
+        // Тот самый плавный градиент
         private val OFF_COLORS = intArrayOf(
             Color.parseColor("#332E67"),
             Color.parseColor("#2F2A5E"),
@@ -61,9 +55,7 @@ class MainActivity : Activity() {
             Color.parseColor("#18162B"),
             Color.parseColor("#110F1C"),
             Color.parseColor("#0B0B11"),
-            Color.parseColor("#060807"),
-            Color.parseColor("#060807"), 
-            Color.parseColor("#060807")  
+            Color.parseColor("#060807")
         )
 
         private val ON_COLORS = intArrayOf(
@@ -72,7 +64,6 @@ class MainActivity : Activity() {
             Color.parseColor("#0C3E29"),
             Color.parseColor("#0B3323"),
             Color.parseColor("#09291C"),
-            Color.parseColor("#060807"),
             Color.parseColor("#060807"),
             Color.parseColor("#060807")
         )
@@ -85,59 +76,52 @@ class MainActivity : Activity() {
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (!isProcessing && intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
-                updateUIState()
-            }
+            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) updateStatus()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Определяем, телевизор ли это
         val uiModeManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
-        window.navigationBarColor = Color.parseColor("#060807")
-
-        mainContainer = FrameLayout(this)
         
-        contentLayout = LinearLayout(this).apply {
+        // --- СИСТЕМНЫЕ БАРЫ ---
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = Color.TRANSPARENT
+        // Важно: навигационная панель черная, чтобы не выделялась
+        window.navigationBarColor = Color.parseColor("#060807")
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        )
+
+        // --- ИНТЕРФЕЙС ---
+        mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 0, 0, 0)
         }
 
+        // 1. Текст статуса
         statusText = TextView(this).apply {
             textSize = if (isTvMode) 18f else 22f
             setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
-            setPadding(0, if (isTvMode) 50 else 200, 0, 0) 
+            // Адаптивный отступ: на ТВ меньше, на телефоне больше
+            setPadding(0, if (isTvMode) 50 else 250, 0, 0) 
         }
 
-        val btnSize = if (isTvMode) 300 else 400
-        val spinnerSize = if (isTvMode) 400 else 550
-        val btnMargin = if (isTvMode) 30 else 250
-
-        val centerBox = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(spinnerSize, spinnerSize).apply {
-                topMargin = btnMargin 
-            }
-        }
-
-        orbitSpinner = ProgressBar(this).apply {
-            visibility = View.INVISIBLE
-            indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
-            layoutParams = FrameLayout.LayoutParams(spinnerSize, spinnerSize).apply {
-                gravity = Gravity.CENTER
-            }
-        }
-
+        // 2. Кнопка питания
         powerButton = ImageButton(this).apply {
             isFocusable = true
-            isFocusableInTouchMode = true
+            isFocusableInTouchMode = true // Чтобы пульт видел кнопку
             
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
@@ -147,7 +131,7 @@ class MainActivity : Activity() {
                         strokeWidth = if (isTvMode) 6f else 8f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(8f, 0f, 0f, Color.parseColor("#40000000"))
+                        setShadowLayer(10f, 0f, 0f, Color.parseColor("#80000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
@@ -163,26 +147,14 @@ class MainActivity : Activity() {
             }
             setImageDrawable(icon)
             
-            val normal = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#10FFFFFF"))
-                setStroke(3, Color.parseColor("#40FFFFFF"))
-            }
-            val pressed = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#30FFFFFF"))
-            }
-            val states = StateListDrawable()
-            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(android.R.attr.state_focused), pressed)
-            states.addState(intArrayOf(), normal)
-            background = states
-            
-            layoutParams = FrameLayout.LayoutParams(btnSize, btnSize).apply {
-                gravity = Gravity.CENTER
-            }
+            // Размер кнопки (на ТВ меньше)
+            val size = if (isTvMode) 300 else 450
+            val params = LinearLayout.LayoutParams(size, size)
+            params.topMargin = if (isTvMode) 30 else 200
+            layoutParams = params
         }
 
+        // 3. Адрес
         proxyAddress = TextView(this).apply {
             textSize = if (isTvMode) 12f else 14f
             setTextColor(Color.parseColor("#40FFFFFF"))
@@ -192,15 +164,13 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
-        centerBox.addView(orbitSpinner)
-        centerBox.addView(powerButton)
+        mainLayout.addView(statusText)
+        mainLayout.addView(powerButton)
+        mainLayout.addView(proxyAddress)
+        
+        setContentView(mainLayout)
 
-        contentLayout.addView(statusText)
-        contentLayout.addView(centerBox)
-        contentLayout.addView(proxyAddress)
-
-        mainContainer.addView(contentLayout)
-        setContentView(mainContainer)
+        // --- ЛОГИКА ---
 
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
@@ -215,7 +185,15 @@ class MainActivity : Activity() {
         }
 
         powerButton.setOnClickListener {
-            handleUserClick()
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            powerButton.isClickable = false
+            hasAutoStarted = true
+            val (status, _) = appStatus
+            when (status) {
+                AppStatus.Halted -> start()
+                AppStatus.Running -> stop()
+            }
+            powerButton.postDelayed({ powerButton.isClickable = true }, 500)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -233,7 +211,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (!isProcessing) updateUIState()
+        updateStatus()
     }
 
     override fun onDestroy() {
@@ -245,32 +223,6 @@ class MainActivity : Activity() {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
         }
-    }
-
-    private fun handleUserClick() {
-        if (isProcessing) return
-        isProcessing = true
-        powerButton.isEnabled = false
-        
-        powerButton.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-        
-        orbitSpinner.visibility = View.VISIBLE
-        
-        val futureColor = if (appStatus.first == AppStatus.Halted) "#2ECC71" else "#A0A0A0"
-        orbitSpinner.indeterminateTintList = ColorStateList.valueOf(Color.parseColor(futureColor))
-
-        mainContainer.postDelayed({
-            val (status, _) = appStatus
-            if (status == AppStatus.Halted) start() else stop()
-            
-            updateUIState()
-            
-            orbitSpinner.visibility = View.INVISIBLE
-            isProcessing = false
-            powerButton.isEnabled = true
-            
-            if (isTvMode) powerButton.requestFocus()
-        }, 2000)
     }
 
     private fun start() {
@@ -292,7 +244,7 @@ class MainActivity : Activity() {
         ServiceManager.stop(this)
     }
 
-    private fun updateUIState() {
+    private fun updateStatus() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
@@ -303,47 +255,57 @@ class MainActivity : Activity() {
             statusText.text = "Подключён"
             statusText.setTextColor(Color.parseColor("#2ECC71"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
-            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
-            mainContainer.background = gradient
+            // Зеленый градиент
+            val onGradient = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                ON_COLORS
+            )
+            mainLayout.background = onGradient
             
+            // Кнопка: Яркая зеленая обводка
             val glow = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#152ECC71"))
+                setColor(Color.parseColor("#102ECC71"))
                 setStroke(5, Color.parseColor("#2ECC71"))
             }
+            // Состояние нажатия/фокуса
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#302ECC71"))
+                setColor(Color.parseColor("#252ECC71"))
                 setStroke(5, Color.parseColor("#2ECC71"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(android.R.attr.state_focused), pressed)
+            states.addState(intArrayOf(android.R.attr.state_focused), pressed) // Для пульта
             states.addState(intArrayOf(), glow)
             powerButton.background = states
             
         } else {
             statusText.text = "Нет связи"
-            statusText.setTextColor(Color.parseColor("#A0A0A0"))
+            statusText.setTextColor(Color.parseColor("#909090"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
-            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
-            mainContainer.background = gradient
+            // Фиолетовый градиент
+            val offGradient = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                OFF_COLORS
+            )
+            mainLayout.background = offGradient
             
+            // Кнопка: Спокойная прозрачная
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#40FFFFFF"))
+                setStroke(2, Color.parseColor("#30FFFFFF"))
             }
+            // Состояние нажатия/фокуса
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#20FFFFFF"))
-                setStroke(3, Color.parseColor("#60FFFFFF"))
+                setColor(Color.parseColor("#15FFFFFF"))
+                setStroke(2, Color.parseColor("#50FFFFFF"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(android.R.attr.state_focused), pressed)
+            states.addState(intArrayOf(android.R.attr.state_focused), pressed) // Для пульта
             states.addState(intArrayOf(), normal)
             powerButton.background = states
         }
