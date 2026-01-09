@@ -24,6 +24,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -50,7 +51,9 @@ class MainActivity : Activity() {
     private var hasAutoStarted = false
     private var isTvMode = false
     private val handler = Handler(Looper.getMainLooper())
-    private var startTime = 0L
+    
+    // Используем elapsedRealtime для таймера (надежнее при смене часовых поясов)
+    private var startTimestamp = 0L 
     private var startRx = 0L
     private var startTx = 0L
 
@@ -109,6 +112,7 @@ class MainActivity : Activity() {
         override fun run() {
             if (appStatus.first == AppStatus.Running) {
                 updateTimerAndTraffic()
+                // Обновляем каждую секунду
                 handler.postDelayed(this, 1000)
             }
         }
@@ -121,33 +125,24 @@ class MainActivity : Activity() {
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION || 
                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
-        // --- ФИКС НАВИГАЦИОННОЙ ПАНЕЛИ ---
-        // Убираем NO_LIMITS, так как он делает панель прозрачной (и иногда белой)
-        // Используем стандартный флаг отрисовки фонов баров
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
-
-        // Верх (Статус бар) - прозрачный
+        // --- ИДЕАЛЬНАЯ ЧЕРНАЯ НАВИГАЦИЯ ---
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        window.navigationBarColor = Color.BLACK
         window.statusBarColor = Color.TRANSPARENT
         
-        // Низ (Навигация) - Строго черный
-        window.navigationBarColor = Color.BLACK
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Запрещаем системе делать панель светлее/прозрачнее
             window.isNavigationBarContrastEnforced = false
         }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        // Убираем флаг "светлой навигации", чтобы иконки были светлыми на черном фоне
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
         }
-        
-        // Контент рисуется под статус-баром, но НЕ под навигационной панелью (она черная)
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        )
 
         mainContainer = FrameLayout(this)
         
@@ -291,14 +286,19 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         updateUIState()
+        // Восстанавливаем обновление UI, если сервис работает
         if (appStatus.first == AppStatus.Running) {
             restoreSessionData()
+            // Удаляем старые, чтобы не двоилось
+            handler.removeCallbacks(updateRunnable)
             handler.post(updateRunnable)
         }
     }
 
     override fun onPause() {
         super.onPause()
+        // Останавливаем обновление UI, чтобы не жрать батарею в фоне
+        // Сам сервис продолжает работать
         handler.removeCallbacks(updateRunnable)
     }
 
@@ -316,13 +316,16 @@ class MainActivity : Activity() {
     private fun start() {
         if (appStatus.first == AppStatus.Running) return
         
-        startTime = System.currentTimeMillis()
+        // Фиксируем время старта (от включения телефона)
+        startTimestamp = SystemClock.elapsedRealtime()
+        // Фиксируем трафик на момент старта
         startRx = TrafficStats.getUidRxBytes(Process.myUid())
         startTx = TrafficStats.getUidTxBytes(Process.myUid())
         
+        // Сохраняем в память
         val prefs = getPreferences()
         prefs.edit()
-            .putLong("session_start", startTime)
+            .putLong("session_start_ts", startTimestamp)
             .putLong("session_rx_start", startRx)
             .putLong("session_tx_start", startTx)
             .apply()
@@ -342,42 +345,50 @@ class MainActivity : Activity() {
 
     private fun stop() {
         ServiceManager.stop(this)
+        // Очищаем данные сессии
         getPreferences().edit()
-            .remove("session_start")
+            .remove("session_start_ts")
             .remove("session_rx_start")
             .remove("session_tx_start")
             .apply()
+        
         handler.removeCallbacks(updateRunnable)
-        updateTimerAndTraffic(true) 
+        resetTimerAndTrafficUI()
     }
 
     private fun restoreSessionData() {
         val prefs = getPreferences()
-        startTime = prefs.getLong("session_start", System.currentTimeMillis())
+        // Если нет сохраненного старта, берем текущий момент (защита от сбоя)
+        startTimestamp = prefs.getLong("session_start_ts", SystemClock.elapsedRealtime())
         startRx = prefs.getLong("session_rx_start", TrafficStats.getUidRxBytes(Process.myUid()))
         startTx = prefs.getLong("session_tx_start", TrafficStats.getUidTxBytes(Process.myUid()))
     }
 
-    private fun updateTimerAndTraffic(reset: Boolean = false) {
-        if (reset) {
-            timerText.text = "00:00:00"
-            trafficText.text = "↓ 0 B   ↑ 0 B"
-            return
-        }
+    private fun updateTimerAndTraffic() {
+        // ТАЙМЕР
+        val duration = SystemClock.elapsedRealtime() - startTimestamp
+        // Защита от отрицательного времени (если телефон перезагрузился)
+        val safeDuration = if (duration < 0) 0 else duration
         
-        val duration = System.currentTimeMillis() - startTime
-        val seconds = (duration / 1000) % 60
-        val minutes = (duration / (1000 * 60)) % 60
-        val hours = (duration / (1000 * 60 * 60))
+        val seconds = (safeDuration / 1000) % 60
+        val minutes = (safeDuration / (1000 * 60)) % 60
+        val hours = (safeDuration / (1000 * 60 * 60))
         timerText.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
+        // ТРАФИК
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
         
-        val rx = if (currentRx > startRx) currentRx - startRx else 0
-        val tx = if (currentTx > startTx) currentTx - startTx else 0
+        // Если статистика системы сбросилась, показываем просто текущую, иначе дельту
+        val rx = if (currentRx >= startRx) currentRx - startRx else currentRx
+        val tx = if (currentTx >= startTx) currentTx - startTx else currentTx
         
         trafficText.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
+    }
+    
+    private fun resetTimerAndTrafficUI() {
+        timerText.text = "00:00:00"
+        trafficText.text = "↓ 0 B   ↑ 0 B"
     }
 
     private fun formatBytes(bytes: Long): String {
@@ -409,7 +420,7 @@ class MainActivity : Activity() {
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#302ECC71"))
+                setColor(Color.parseColor("#252ECC71"))
                 setStroke(5, Color.parseColor("#2ECC71"))
             }
             val states = StateListDrawable()
@@ -444,7 +455,7 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(), normal)
             powerButton.background = states
             
-            updateTimerAndTraffic(true)
+            resetTimerAndTrafficUI()
         }
     }
 }
