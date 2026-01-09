@@ -30,6 +30,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
@@ -120,15 +121,33 @@ class MainActivity : Activity() {
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION || 
                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
-        // Делаем навигацию черной, чтобы сливалась с фоном
+        // --- ФИКС НАВИГАЦИОННОЙ ПАНЕЛИ ---
+        // Убираем NO_LIMITS, так как он делает панель прозрачной (и иногда белой)
+        // Используем стандартный флаг отрисовки фонов баров
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+
+        // Верх (Статус бар) - прозрачный
+        window.statusBarColor = Color.TRANSPARENT
+        
+        // Низ (Навигация) - Строго черный
         window.navigationBarColor = Color.BLACK
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Запрещаем системе делать панель светлее/прозрачнее
             window.isNavigationBarContrastEnforced = false
         }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
+        // Контент рисуется под статус-баром, но НЕ под навигационной панелью (она черная)
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        )
 
         mainContainer = FrameLayout(this)
         
@@ -221,7 +240,6 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#30FFFFFF"))
             gravity = Gravity.CENTER
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            // Уменьшили отступ, чтобы было ближе к трафику
             params.topMargin = 40 
             layoutParams = params
         }
@@ -356,7 +374,6 @@ class MainActivity : Activity() {
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
         
-        // Считаем от момента запуска
         val rx = if (currentRx > startRx) currentRx - startRx else 0
         val tx = if (currentTx > startTx) currentTx - startTx else 0
         
