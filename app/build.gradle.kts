@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val abis = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+val abis = setOf("armeabi-v7a", "arm64-v8a")
 
 android {
     namespace = "io.github.dovecoteescapee.byedpi"
@@ -26,7 +26,11 @@ android {
     }
 
     signingConfigs {
-        getByName("debug") {
+        create("release") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -42,12 +46,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
