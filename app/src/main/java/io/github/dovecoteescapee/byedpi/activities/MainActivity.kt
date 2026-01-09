@@ -24,8 +24,6 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
-import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
@@ -44,6 +42,30 @@ class MainActivity : Activity() {
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
+        // Цвета для выключенного состояния (Фиолетовый -> Черный)
+        private val OFF_COLORS = intArrayOf(
+            Color.parseColor("#332E67"),
+            Color.parseColor("#2F2A5E"),
+            Color.parseColor("#2D2757"),
+            Color.parseColor("#27224A"),
+            Color.parseColor("#1E1B3A"),
+            Color.parseColor("#18162B"),
+            Color.parseColor("#110F1C"),
+            Color.parseColor("#0B0B11"),
+            Color.parseColor("#060807")
+        )
+
+        // Цвета для включенного состояния (Зеленый -> Черный)
+        private val ON_COLORS = intArrayOf(
+            Color.parseColor("#0F4D34"),
+            Color.parseColor("#0D462F"),
+            Color.parseColor("#0C3E29"),
+            Color.parseColor("#0B3323"),
+            Color.parseColor("#09291C"),
+            Color.parseColor("#060807"), // Переход к общему черному низу
+            Color.parseColor("#060807")
+        )
+
         private fun collectLogs(): String? =
             try {
                 Runtime.getRuntime().exec("logcat *:D -d").inputStream.bufferedReader().use { it.readText() }
@@ -59,48 +81,57 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Полный экран (под статус-бар)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        // --- НАСТРОЙКА СИСТЕМНЫХ БАРОВ ---
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = Color.TRANSPARENT // Прозрачный верх
+        // Делаем нижнюю панель черной (#060807), чтобы сливалась с фоном
+        window.navigationBarColor = Color.parseColor("#060807")
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
+        // Заставляем контент рисоваться под статус-баром
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         )
 
-        // --- UI ---
+        // --- UI (ИНТЕРФЕЙС) ---
         mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 150, 0, 0) // Отступ сверху для текста
+            setPadding(0, 0, 0, 0)
         }
 
-        // Текст статуса (сверху)
+        // Текст "Нет связи" / "Подключен"
         statusText = TextView(this).apply {
-            textSize = 20f
-            setTextColor(Color.parseColor("#A0A0A0")) // Серый текст
+            textSize = 22f
+            setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
-            text = "Нет связи"
+            // Отступ сверху побольше, чтобы не прилипало к камере
+            setPadding(0, 250, 0, 0) 
         }
 
-        // Кнопка (по центру экрана)
+        // Кнопка питания
         powerButton = ImageButton(this).apply {
-            // Рисуем иконку питания кодом
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
                     val paint = Paint().apply {
-                        color = Color.WHITE // Белая иконка по умолчанию
+                        color = Color.WHITE
                         style = Paint.Style.STROKE
                         strokeWidth = 8f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
+                        // Легкая тень для иконки
+                        setShadowLayer(10f, 0f, 0f, Color.parseColor("#80000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
                     val r = w / 3.5f
-                    
-                    // Круг с разрывом сверху
                     canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 20f, 320f, false, paint)
-                    // Палочка сверху
                     canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
                 }
                 override fun setAlpha(alpha: Int) {}
@@ -109,36 +140,19 @@ class MainActivity : Activity() {
             }
             setImageDrawable(icon)
             
-            // Фон кнопки (прозрачный круг с обводкой)
-            val normal = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#20FFFFFF")) // Еле заметный фон
-                setStroke(3, Color.parseColor("#50FFFFFF")) // Тонкая обводка
-            }
-            val pressed = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#40FFFFFF"))
-            }
-            
-            val states = StateListDrawable()
-            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(), normal)
-            background = states
-            
-            // Отступ сверху, чтобы сдвинуть кнопку в центр
-            val params = LinearLayout.LayoutParams(400, 400) // Размер кнопки
-            params.topMargin = 300 
+            // Настройка отступов для кнопки (центр экрана)
+            val params = LinearLayout.LayoutParams(450, 450)
+            params.topMargin = 200
             layoutParams = params
         }
 
-        // Адрес (внизу)
+        // IP Адрес (снизу)
         proxyAddress = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.parseColor("#50FFFFFF")) // Темно-серый
+            setTextColor(Color.parseColor("#40FFFFFF")) // Еле заметный
             gravity = Gravity.CENTER
-            // Сдвигаем вниз
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 100
+            params.topMargin = 150
             layoutParams = params
         }
 
@@ -230,44 +244,61 @@ class MainActivity : Activity() {
         proxyAddress.text = "$ip:$port"
 
         if (status == AppStatus.Running) {
-            // ВКЛЮЧЕНО (Зеленая тема)
+            // ВКЛЮЧЕНО
             statusText.text = "Подключён"
-            statusText.setTextColor(Color.parseColor("#2ECC71")) // Ярко-зеленый текст
+            statusText.setTextColor(Color.parseColor("#2ECC71")) // Яркий зеленый
             
-            // Градиент фона: Темно-зеленый -> Черный
+            // Зеленый градиент
             val onGradient = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#0f3d3e"), Color.BLACK)
+                ON_COLORS
             )
             mainLayout.background = onGradient
             
-            // Кнопка светится зеленым
+            // Кнопка: Зеленая подсветка
             val glow = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#202ECC71")) // Прозрачный зеленый внутри
-                setStroke(5, Color.parseColor("#2ECC71")) // Зеленая обводка
+                setColor(Color.parseColor("#152ECC71"))
+                setStroke(6, Color.parseColor("#2ECC71"))
             }
-            powerButton.background = glow
+            // Анимация нажатия
+            val pressed = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#302ECC71"))
+                setStroke(6, Color.parseColor("#2ECC71"))
+            }
+            val states = StateListDrawable()
+            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            states.addState(intArrayOf(), glow)
+            powerButton.background = states
             
         } else {
-            // ВЫКЛЮЧЕНО (Фиолетовая тема)
+            // ВЫКЛЮЧЕНО
             statusText.text = "Нет связи"
-            statusText.setTextColor(Color.parseColor("#A0A0A0")) // Серый текст
+            statusText.setTextColor(Color.parseColor("#A0A0A0"))
             
-            // Градиент фона: Темно-фиолетовый -> Черный
+            // Фиолетовый градиент
             val offGradient = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#141E30"), Color.BLACK)
+                OFF_COLORS
             )
             mainLayout.background = offGradient
             
-            // Кнопка обычная (белая обводка)
+            // Кнопка: Обычная
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#50FFFFFF"))
+                setStroke(3, Color.parseColor("#40FFFFFF"))
             }
-            powerButton.background = normal
+            val pressed = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#20FFFFFF"))
+                setStroke(3, Color.parseColor("#60FFFFFF"))
+            }
+            val states = StateListDrawable()
+            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            states.addState(intArrayOf(), normal)
+            powerButton.background = states
         }
     }
 }
