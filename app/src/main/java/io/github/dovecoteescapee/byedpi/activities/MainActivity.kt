@@ -108,6 +108,9 @@ class MainActivity : Activity() {
         }
 
         powerButton = ImageButton(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
                     val paint = Paint().apply {
@@ -253,6 +256,7 @@ class MainActivity : Activity() {
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            states.addState(intArrayOf(android.R.attr.state_focused), pressed)
             states.addState(intArrayOf(), glow)
             powerButton.background = states
             
@@ -278,6 +282,7 @@ class MainActivity : Activity() {
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            states.addState(intArrayOf(android.R.attr.state_focused), pressed)
             states.addState(intArrayOf(), normal)
             powerButton.background = states
         }
