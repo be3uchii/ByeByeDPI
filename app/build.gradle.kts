@@ -13,26 +13,20 @@ android {
 
     defaultConfig {
         applicationId = "io.github.romanvht.byedpi"
-        minSdk = 21 // Android 5.0 (Lollipop) и выше
-        targetSdk = 33 // Android 13 (для лучшей совместимости)
+        minSdk = 21
+        targetSdk = 33
         versionCode = 1690
         versionName = "1.6.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
+
         ndk {
             abiFilters.addAll(abis)
         }
     }
-    
+
     signingConfigs {
-        create("release") {
-            // Для отладочной сборки можно использовать debug-ключ,
-            // но важно включить обе версии подписи
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        getByName("debug") {
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -48,7 +42,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug") // Используем debug ключ для простоты
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = true
