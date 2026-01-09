@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: recursive  # <--- ВОТ ЭТО ИСПРАВЛЕНИЕ
+          submodules: recursive
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -30,9 +30,13 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew :app:assembleDebug
 
-      - name: Upload debug APK
+      # Я добавил этот шаг, чтобы в логах было видно, где именно лежит файл (на случай проблем)
+      - name: List APKs
+        run: find . -name "*.apk"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: '**/*.apk'  # <--- ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ (звездочки найдут файл везде)
           
