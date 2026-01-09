@@ -2,7 +2,7 @@
   <p>
     <img src="https://github.com/romanvht/ByeDPIAndroid/raw/master/.github/images/app.svg" alt="Логотип ByeDPI" width="200" />
   </p>
-  <h1>ByeByeDPI Android</h1>
+  <h1>ByeByeDPI Android</h1> 
   <p>
     Русский |
     <a href="README-en.md">English</a> |
