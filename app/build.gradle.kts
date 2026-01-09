@@ -5,7 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val abis = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+// Оставляем только ARM64 (для современных телефонов и TV)
+val abis = setOf("arm64-v8a")
 
 android {
     namespace = "io.github.dovecoteescapee.byedpi"
@@ -35,10 +36,17 @@ android {
         release {
             buildConfigField("String", "VERSION_NAME",  "\"${defaultConfig.versionName}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            
+            // Включаем сжатие кода (убирает лишние DEX)
             isMinifyEnabled = true
+            // Включаем удаление лишних ресурсов (уменьшает размер)
+            isShrinkResources = true
         }
         debug {
             buildConfigField("String", "VERSION_NAME",  "\"${defaultConfig.versionName}-debug\"")
+            // Включаем сжатие даже для debug, чтобы был 1 dex файл (чуть замедлит сборку)
+            isMinifyEnabled = true 
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -60,21 +68,9 @@ android {
         }
     }
 
-    // https://android.izzysoft.de/articles/named/iod-scan-apkchecks?lang=en#blobs
     dependenciesInfo {
-        // Disables dependency metadata when building APKs.
         includeInApk = false
-        // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
-    }
-
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include(*abis.toTypedArray())
-            isUniversalApk = true
-        }
     }
 }
 
