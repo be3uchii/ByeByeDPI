@@ -53,11 +53,13 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         hideSystemUI()
 
+        // 1. Фон (Градиент)
         val background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.parseColor("#1A2980"), Color.parseColor("#26D0CE"))
         )
 
+        // 2. Основной слой
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -65,6 +67,7 @@ class MainActivity : Activity() {
             this.background = background
         }
 
+        // 3. Текст статуса
         statusText = TextView(this).apply {
             textSize = 24f
             setTextColor(Color.WHITE)
@@ -72,11 +75,13 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 100)
         }
 
+        // 4. Кнопка
         statusButton = Button(this).apply {
             textSize = 18f
             setTextColor(Color.WHITE)
             isAllCaps = false
             
+            // Создаем разные drawable для состояний
             val normal = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadius = 100f
@@ -87,15 +92,16 @@ class MainActivity : Activity() {
                 cornerRadius = 100f
             }
             
-            // ВОТ ТУТ БЫЛА ОШИБКА, ТЕПЕРЬ ИСПРАВЛЕНО:
-            background = StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_pressed), pressed)
-                addState(intArrayOf(), normal)
-            }
+            val states = StateListDrawable()
+            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            states.addState(intArrayOf(), normal)
+            
+            background = states // Присваиваем StateListDrawable в background (тип Drawable) - теперь ошибок не будет
             
             layoutParams = LinearLayout.LayoutParams(600, 180)
         }
 
+        // 5. Адрес
         proxyAddress = TextView(this).apply {
             textSize = 14f
             setTextColor(Color.parseColor("#B0FFFFFF"))
