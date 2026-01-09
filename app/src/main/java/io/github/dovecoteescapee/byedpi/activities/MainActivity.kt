@@ -1,6 +1,8 @@
 package io.github.dovecoteescapee.byedpi.activities
 
 import android.Manifest
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,149 +15,101 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.StateListDrawable
-import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.animation.ValueAnimator
-import android.animation.ObjectAnimator
-import android.animation.AnimatorSet
-import android.animation.AnimatorListenerAdapter
-import android.animation.ArgbEvaluator
-import android.view.animation.DecelerateInterpolator
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
 import io.github.dovecoteescapee.byedpi.utility.*
-import java.io.IOException
 
 class MainActivity : Activity() {
     private lateinit var mainLayout: LinearLayout
     private lateinit var statusText: TextView
-    private lateinit var powerButton: ImageButton
+    private lateinit var powerButton: PowerButton
     private lateinit var proxyAddress: TextView
     private var hasAutoStarted = false
-    private var isAnimating = false
+    private var currentStatus: AppStatus? = null
 
     companion object {
         private const val REQUEST_VPN = 1
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
-        private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#E6332E67"),
-            Color.parseColor("#D92F2A5E"),
-            Color.parseColor("#C92D2757"),
-            Color.parseColor("#B927224A"),
-            Color.parseColor("#9E1E1B3A"),
-            Color.parseColor("#8818162B"),
-            Color.parseColor("#66110F1C"),
-            Color.parseColor("#3B0B0B11"),
-            Color.parseColor("#15060807")
-        )
+        private val OFF_START_COLOR = Color.parseColor("#121212")
+        private val OFF_END_COLOR = Color.parseColor("#1E1E2C")
+        private val ON_START_COLOR = Color.parseColor("#0F2027")
+        private val ON_END_COLOR = Color.parseColor("#203A43")
 
-        private val ON_COLORS = intArrayOf(
-            Color.parseColor("#E60F4D34"),
-            Color.parseColor("#D70E462F"),
-            Color.parseColor("#C90C3E29"),
-            Color.parseColor("#B90B3323"),
-            Color.parseColor("#A008291C"),
-            Color.parseColor("#8A061217"),
-            Color.parseColor("#52060A0A"),
-            Color.parseColor("#2A060607")
-        )
-
-        private fun collectLogs(): String? =
-            try {
-                Runtime.getRuntime().exec("logcat *:D -d").inputStream.bufferedReader().use { it.readText() }
-            } catch (e: Exception) { null }
+        private val TEXT_COLOR_OFF = Color.parseColor("#757575")
+        private val TEXT_COLOR_ON = Color.parseColor("#4CAF50")
+        
+        private val BUTTON_COLOR_OFF = Color.parseColor("#424242")
+        private val BUTTON_COLOR_ON = Color.parseColor("#00E676")
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) updateStatus()
+            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
+                animateStatusUpdate()
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#060807")
-
+        window.navigationBarColor = Color.TRANSPARENT
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
-
+        
         window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
         )
 
         mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 0, 0, 0)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
         }
 
         statusText = TextView(this).apply {
-            textSize = 22f
-            setTextColor(Color.parseColor("#A0A0A0"))
+            textSize = 28f
+            letterSpacing = 0.1f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(0, 250, 0, 0)
+            setPadding(0, 0, 0, 100)
         }
 
-        powerButton = ImageButton(this).apply {
-            val icon = object : Drawable() {
-                override fun draw(canvas: Canvas) {
-                    val paint = Paint().apply {
-                        color = Color.WHITE
-                        style = Paint.Style.STROKE
-                        strokeWidth = 8f
-                        isAntiAlias = true
-                        strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(10f, 0f, 0f, Color.parseColor("#80000000"))
-                    }
-                    val w = bounds.width().toFloat()
-                    val h = bounds.height().toFloat()
-                    val cx = w / 2
-                    val cy = h / 2
-                    val r = w / 3.5f
-                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 290f, 320f, false, paint)
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
-                }
-                override fun setAlpha(alpha: Int) {}
-                override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
-                override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
-            }
-            setImageDrawable(icon)
-
-            val params = LinearLayout.LayoutParams(450, 450)
-            params.topMargin = 200
-            layoutParams = params
+        powerButton = PowerButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(400, 400)
         }
 
         proxyAddress = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.parseColor("#40FFFFFF"))
+            alpha = 0.5f
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 150
-            layoutParams = params
+            setPadding(0, 100, 0, 0)
         }
 
         mainLayout.addView(statusText)
         mainLayout.addView(powerButton)
         mainLayout.addView(proxyAddress)
-
+        
         setContentView(mainLayout)
 
         val intentFilter = IntentFilter().apply {
@@ -172,29 +126,29 @@ class MainActivity : Activity() {
 
         powerButton.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            powerButton.isClickable = false
-            hasAutoStarted = true
             val (status, _) = appStatus
-            val target = status != AppStatus.Running
-            animateToggle(target)
+            when (status) {
+                AppStatus.Halted -> start()
+                AppStatus.Running -> stop()
+            }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
         }
 
         ShortcutUtils.update(this)
-
+        
         if (savedInstanceState == null && !hasAutoStarted && appStatus.first == AppStatus.Halted) {
             hasAutoStarted = true
-            powerButton.postDelayed({ animateToggle(true) }, 300)
+            powerButton.postDelayed({ start() }, 500) 
         }
     }
 
     override fun onResume() {
         super.onResume()
-        updateStatus()
+        animateStatusUpdate(animate = false)
     }
 
     override fun onDestroy() {
@@ -227,119 +181,122 @@ class MainActivity : Activity() {
         ServiceManager.stop(this)
     }
 
-    private fun createGradient(colors: IntArray, centerY: Float, alphaValue: Int): GradientDrawable {
-        return GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors).apply {
-            gradientType = GradientDrawable.LINEAR_GRADIENT
-            setGradientCenter(0.5f, centerY)
-            alpha = alphaValue
-        }
-    }
-
-    private fun applyBackgroundSmooth(newDrawable: Drawable, duration: Int) {
-        val current = mainLayout.background
-        if (current == null) {
-            mainLayout.background = newDrawable
-        } else {
-            val transition = android.graphics.drawable.TransitionDrawable(arrayOf(current, newDrawable))
-            transition.isCrossFadeEnabled = true
-            mainLayout.background = transition
-            transition.startTransition(duration)
-        }
-    }
-
-    private fun animateToggle(turnOn: Boolean) {
-        if (isAnimating) return
-        isAnimating = true
-        val duration = 800
-
-        val targetGradient = if (turnOn) createGradient(ON_COLORS, 0.4f, 230) else createGradient(OFF_COLORS, 0.35f, 220)
-
-        applyBackgroundSmooth(targetGradient, duration)
-
-        val scaleUpX = ObjectAnimator.ofFloat(powerButton, "scaleX", 1f, 1.08f)
-        val scaleUpY = ObjectAnimator.ofFloat(powerButton, "scaleY", 1f, 1.08f)
-        val scaleDownX = ObjectAnimator.ofFloat(powerButton, "scaleX", 1.08f, 1f)
-        val scaleDownY = ObjectAnimator.ofFloat(powerButton, "scaleY", 1.08f, 1f)
-        val pulse = ObjectAnimator.ofFloat(powerButton, "alpha", 1f, 0.9f, 1f)
-
-        val colorFrom = if (turnOn) Color.parseColor("#A0A0A0") else Color.parseColor("#98E6A0")
-        val colorTo = if (turnOn) Color.parseColor("#98E6A0") else Color.parseColor("#A0A0A0")
-        val colorAnimator = ValueAnimator.ofObject(ArgbEvaluator(), colorFrom, colorTo).apply {
-            addUpdateListener { animator ->
-                statusText.setTextColor(animator.animatedValue as Int)
-            }
-        }
-
-        val animatorSet = AnimatorSet().apply {
-            play(scaleUpX).with(scaleUpY).with(pulse).with(colorAnimator)
-            play(scaleDownX).with(scaleDownY).after(scaleUpX)
-            interpolator = DecelerateInterpolator()
-            this.duration = duration.toLong()
-        }
-
-        animatorSet.addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator?) {
-                isAnimating = false
-                powerButton.isClickable = true
-                if (turnOn) start() else stop()
-            }
-        })
-
-        animatorSet.start()
-    }
-
-    private fun updateStatus() {
+    private fun animateStatusUpdate(animate: Boolean = true) {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
 
         proxyAddress.text = "$ip:$port"
 
-        if (status == AppStatus.Running) {
-            statusText.text = "Подключён"
-            statusText.setTextColor(Color.parseColor("#98E6A0"))
+        if (currentStatus == status) return
+        currentStatus = status
 
-            val onGradient = createGradient(ON_COLORS, 0.4f, 230)
+        val isRunning = status == AppStatus.Running
+        val targetText = if (isRunning) "ACTIVATED" else "DISCONNECTED"
+        val targetTextColor = if (isRunning) TEXT_COLOR_ON else TEXT_COLOR_OFF
+        val targetBgStart = if (isRunning) ON_START_COLOR else OFF_START_COLOR
+        val targetBgEnd = if (isRunning) ON_END_COLOR else OFF_END_COLOR
+        val targetBtnColor = if (isRunning) BUTTON_COLOR_ON else BUTTON_COLOR_OFF
 
-            applyBackgroundSmooth(onGradient, 420)
+        if (!animate) {
+            statusText.text = targetText
+            statusText.setTextColor(targetTextColor)
+            mainLayout.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(targetBgStart, targetBgEnd))
+            powerButton.setColor(targetBtnColor)
+            powerButton.setGlowing(isRunning)
+            return
+        }
 
-            val glow = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#182ECC71"))
-                setStroke(6, Color.parseColor("#66E6A0"))
+        statusText.animate().alpha(0f).setDuration(150).withEndAction {
+            statusText.text = targetText
+            statusText.setTextColor(targetTextColor)
+            statusText.animate().alpha(1f).setDuration(150).start()
+        }.start()
+
+        val bgAnimator = ValueAnimator.ofFloat(0f, 1f)
+        val evaluator = ArgbEvaluator()
+        val currentBg = mainLayout.background as? GradientDrawable
+        val startColors = if (currentBg != null && currentBg.colors != null) currentBg.colors!! else intArrayOf(OFF_START_COLOR, OFF_END_COLOR)
+        
+        bgAnimator.addUpdateListener { anim ->
+            val fraction = anim.animatedFraction
+            val newStart = evaluator.evaluate(fraction, startColors[0], targetBgStart) as Int
+            val newEnd = evaluator.evaluate(fraction, startColors[1], targetBgEnd) as Int
+            mainLayout.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(newStart, newEnd))
+        }
+        bgAnimator.duration = 600
+        bgAnimator.interpolator = AccelerateDecelerateInterpolator()
+        bgAnimator.start()
+
+        powerButton.animateColor(targetBtnColor)
+        powerButton.setGlowing(isRunning)
+    }
+
+    private inner class PowerButton(context: Context) : ImageButton(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var currentColor = BUTTON_COLOR_OFF
+        private var isGlowing = false
+        private val glowAnimator = ValueAnimator.ofFloat(0.8f, 1.2f).apply {
+            duration = 1500
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { invalidate() }
+        }
+
+        init {
+            background = null
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 12f
+            paint.strokeCap = Paint.Cap.ROUND
+        }
+
+        fun setColor(color: Int) {
+            currentColor = color
+            invalidate()
+        }
+
+        fun animateColor(targetColor: Int) {
+            val animator = ValueAnimator.ofObject(ArgbEvaluator(), currentColor, targetColor)
+            animator.duration = 400
+            animator.addUpdateListener { 
+                currentColor = it.animatedValue as Int
+                invalidate()
             }
-            val pressed = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#252ECC71"))
-                setStroke(6, Color.parseColor("#66E6A0"))
+            animator.start()
+        }
+
+        fun setGlowing(glowing: Boolean) {
+            isGlowing = glowing
+            if (glowing) {
+                if (!glowAnimator.isStarted) glowAnimator.start()
+            } else {
+                glowAnimator.cancel()
+                scaleX = 1f
+                scaleY = 1f
             }
-            val states = StateListDrawable()
-            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(), glow)
-            powerButton.background = states
+            invalidate()
+        }
 
-        } else {
-            statusText.text = "Нет связи"
-            statusText.setTextColor(Color.parseColor("#A0A0A0"))
+        override fun onDraw(canvas: Canvas) {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val cx = w / 2
+            val cy = h / 2
+            val r = w / 3.2f
 
-            val offGradient = createGradient(OFF_COLORS, 0.35f, 220)
-
-            applyBackgroundSmooth(offGradient, 420)
-
-            val normal = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#40FFFFFF"))
+            if (isGlowing) {
+                paint.setShadowLayer(30f, 0f, 0f, currentColor)
+                val scale = glowAnimator.animatedValue as Float
+                this.scaleX = 1f + (scale - 1f) * 0.1f
+                this.scaleY = 1f + (scale - 1f) * 0.1f
+            } else {
+                paint.clearShadowLayer()
             }
-            val pressed = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#20FFFFFF"))
-                setStroke(3, Color.parseColor("#60FFFFFF"))
-            }
-            val states = StateListDrawable()
-            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(), normal)
-            powerButton.background = states
+
+            paint.color = currentColor
+            canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 30f, 300f, false, paint)
+            canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
         }
     }
 }
