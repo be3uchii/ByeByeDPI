@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -36,6 +37,10 @@ class MainActivity : Activity() {
         private const val REQUEST_VPN = 1
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
+        
+        // Флаг, чтобы автозапуск срабатывал только при холодном старте,
+        // а не когда ты вернулся с паузы
+        private var hasAutoStarted = false
 
         private fun collectLogs(): String? =
             try {
@@ -51,62 +56,73 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        hideSystemUI()
-
-        // 1. Фон (Градиент) - ПЕРЕИМЕНОВАЛИ ПЕРЕМЕННУЮ
-        val mainGradient = GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.parseColor("#1A2980"), Color.parseColor("#26D0CE"))
+        
+        // 1. Делаем НАСТОЯЩИЙ полный экран (под вырез камеры и батарею)
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
 
-        // 2. Основной слой
+        // 2. Фон (Градиент)
+        val mainGradient = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.parseColor("#0F2027"), Color.parseColor("#203A43"), Color.parseColor("#2C5364"))
+        )
+
+        // 3. Основной контейнер
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(60, 60, 60, 60)
-            this.background = mainGradient // Используем переименованную переменную
+            // Добавляем отступы, чтобы контент не налез на закругленные углы экрана
+            setPadding(40, 100, 40, 40) 
+            this.background = mainGradient
         }
 
-        // 3. Текст статуса
+        // 4. Текст статуса (Меньше и аккуратнее)
         statusText = TextView(this).apply {
-            textSize = 24f
-            setTextColor(Color.WHITE)
+            textSize = 16f 
+            letterSpacing = 0.1f
+            setTextColor(Color.parseColor("#AAAAAA"))
+            isAllCaps = true
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 100)
+            setPadding(0, 0, 0, 80)
         }
 
-        // 4. Кнопка
+        // 5. Кнопка (Круглая и красивая)
         statusButton = Button(this).apply {
-            textSize = 18f
+            textSize = 16f
             setTextColor(Color.WHITE)
-            isAllCaps = false
+            isAllCaps = true
+            elevation = 10f
+            stateListAnimator = null // Убираем стандартную тень андроида
             
             val normal = GradientDrawable().apply {
-                setColor(Color.parseColor("#40FFFFFF"))
-                cornerRadius = 100f
-                setStroke(3, Color.WHITE)
+                setColor(Color.TRANSPARENT)
+                cornerRadius = 200f
+                setStroke(4, Color.WHITE)
             }
             val pressed = GradientDrawable().apply {
-                setColor(Color.parseColor("#80FFFFFF"))
-                cornerRadius = 100f
+                setColor(Color.parseColor("#33FFFFFF"))
+                cornerRadius = 200f
+                setStroke(4, Color.parseColor("#DDDDDD"))
             }
             
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
             states.addState(intArrayOf(), normal)
             
-            // Теперь this.background относится к кнопке, конфликта имен нет
-            this.background = states 
+            this.background = states
             
-            layoutParams = LinearLayout.LayoutParams(600, 180)
+            // Делаем кнопку круглой (180x180)
+            layoutParams = LinearLayout.LayoutParams(450, 450)
         }
 
-        // 5. Адрес
+        // 6. Адрес (еле заметный внизу)
         proxyAddress = TextView(this).apply {
-            textSize = 14f
-            setTextColor(Color.parseColor("#B0FFFFFF"))
+            textSize = 12f
+            setTextColor(Color.parseColor("#50FFFFFF"))
             gravity = Gravity.CENTER
-            setPadding(0, 60, 0, 0)
+            setPadding(0, 100, 0, 0)
         }
 
         layout.addView(statusText)
@@ -130,12 +146,16 @@ class MainActivity : Activity() {
         statusButton.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             statusButton.isClickable = false
+            
+            // Ручное управление сбрасывает логику "первого запуска"
+            hasAutoStarted = true 
+            
             val (status, _) = appStatus
             when (status) {
                 AppStatus.Halted -> start()
                 AppStatus.Running -> stop()
             }
-            statusButton.postDelayed({ statusButton.isClickable = true }, 1000)
+            statusButton.postDelayed({ statusButton.isClickable = true }, 500)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -145,24 +165,19 @@ class MainActivity : Activity() {
 
         ShortcutUtils.update(this)
         
-        if (savedInstanceState == null && appStatus.first == AppStatus.Halted) {
+        // --- ЛОГИЧНЫЙ АВТОЗАПУСК ---
+        // Включаем, ТОЛЬКО если это первый старт приложения и сервис выключен.
+        // Если сервис выключили кнопкой (Пауза/Стоп), hasAutoStarted уже будет true (или сервис Running),
+        // и повторного включения не произойдет.
+        if (savedInstanceState == null && !hasAutoStarted && appStatus.first == AppStatus.Halted) {
+            hasAutoStarted = true
             statusButton.postDelayed({ start() }, 300) 
         }
     }
 
     override fun onResume() {
         super.onResume()
-        hideSystemUI()
         updateStatus()
-    }
-
-    private fun hideSystemUI() {
-        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN)
     }
 
     override fun onDestroy() {
@@ -196,20 +211,40 @@ class MainActivity : Activity() {
     }
 
     private fun updateStatus() {
-        val (status, mode) = appStatus
+        val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
 
-        proxyAddress.text = getString(R.string.proxy_address, ip, port)
+        proxyAddress.text = "$ip:$port"
 
         if (status == AppStatus.Running) {
-            statusText.text = if (mode == Mode.VPN) getString(R.string.vpn_connected) else getString(R.string.proxy_up)
-            statusButton.text = if (mode == Mode.VPN) getString(R.string.vpn_disconnect) else getString(R.string.proxy_stop)
-            statusButton.alpha = 0.8f
+            // ЛОГИКА ТЕКСТОВ
+            statusText.text = "ПОДКЛЮЧЕНО"
+            statusText.setTextColor(Color.parseColor("#66FF99")) // Зеленоватый
+            
+            statusButton.text = "СТОП"
+            
+            // Эффект "Свечения" при работе
+            val glow = GradientDrawable().apply {
+                setColor(Color.parseColor("#2066FF99")) // Прозрачный зеленый
+                cornerRadius = 200f
+                setStroke(4, Color.parseColor("#66FF99"))
+            }
+            statusButton.background = glow
+            
         } else {
-            statusText.text = if (prefs.mode() == Mode.VPN) getString(R.string.vpn_disconnected) else getString(R.string.proxy_down)
-            statusButton.text = if (prefs.mode() == Mode.VPN) getString(R.string.vpn_connect) else getString(R.string.proxy_start)
-            statusButton.alpha = 1.0f
+            statusText.text = "ОТКЛЮЧЕНО"
+            statusText.setTextColor(Color.parseColor("#FF6666")) // Красноватый
+            
+            statusButton.text = "СТАРТ"
+            
+            // Обычный вид
+            val normal = GradientDrawable().apply {
+                setColor(Color.TRANSPARENT)
+                cornerRadius = 200f
+                setStroke(4, Color.WHITE)
+            }
+            statusButton.background = normal
         }
     }
 }
