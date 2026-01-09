@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
@@ -31,7 +30,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
@@ -109,8 +107,8 @@ class MainActivity : Activity() {
         override fun run() {
             if (appStatus.first == AppStatus.Running) {
                 updateTimerAndTraffic()
-                handler.postDelayed(this, 1000)
             }
+            handler.postDelayed(this, 1000)
         }
     }
 
@@ -273,11 +271,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         updateUIState()
-        if (appStatus.first == AppStatus.Running) {
-            restoreSessionData()
-            handler.removeCallbacks(updateRunnable)
-            handler.post(updateRunnable)
-        }
+        
+        restoreSessionData()
+        handler.removeCallbacks(updateRunnable)
+        handler.post(updateRunnable)
     }
 
     override fun onPause() {
@@ -331,15 +328,16 @@ class MainActivity : Activity() {
             .remove("session_tx_start")
             .apply()
         
-        handler.removeCallbacks(updateRunnable)
         resetTimerAndTrafficUI()
     }
 
     private fun restoreSessionData() {
         val prefs = getPreferences()
-        startTimestamp = prefs.getLong("session_start_ts", SystemClock.elapsedRealtime())
-        startRx = prefs.getLong("session_rx_start", TrafficStats.getUidRxBytes(Process.myUid()))
-        startTx = prefs.getLong("session_tx_start", TrafficStats.getUidTxBytes(Process.myUid()))
+        if (prefs.contains("session_start_ts")) {
+            startTimestamp = prefs.getLong("session_start_ts", SystemClock.elapsedRealtime())
+            startRx = prefs.getLong("session_rx_start", TrafficStats.getUidRxBytes(Process.myUid()))
+            startTx = prefs.getLong("session_tx_start", TrafficStats.getUidTxBytes(Process.myUid()))
+        }
     }
 
     private fun updateTimerAndTraffic() {
@@ -354,10 +352,11 @@ class MainActivity : Activity() {
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
         
-        val rx = if (currentRx >= startRx) currentRx - startRx else 0
-        val tx = if (currentTx >= startTx) currentTx - startTx else 0
-        
-        trafficText.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
+        if (currentRx != TrafficStats.UNSUPPORTED.toLong() && currentTx != TrafficStats.UNSUPPORTED.toLong()) {
+            val rx = if (currentRx >= startRx) currentRx - startRx else currentRx
+            val tx = if (currentTx >= startTx) currentTx - startTx else currentTx
+            trafficText.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
+        }
     }
     
     private fun resetTimerAndTrafficUI() {
@@ -402,8 +401,6 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(android.R.attr.state_focused), pressed)
             states.addState(intArrayOf(), glow)
             powerButton.background = states
-            
-            if (!handler.hasMessages(0)) handler.post(updateRunnable)
             
         } else {
             statusText.text = "Нет связи"
