@@ -1,7 +1,6 @@
 package io.github.dovecoteescapee.byedpi.activities
 
 import android.Manifest
-import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -23,12 +22,12 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
@@ -36,44 +35,43 @@ import io.github.dovecoteescapee.byedpi.utility.*
 import java.io.IOException
 
 class MainActivity : Activity() {
-    private lateinit var mainLayout: LinearLayout
+    private lateinit var mainContainer: FrameLayout
+    private lateinit var contentLayout: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var powerButton: ImageButton
-    private lateinit var loadingSpinner: ProgressBar
+    private lateinit var orbitSpinner: ProgressBar
     private lateinit var proxyAddress: TextView
-    private var hasAutoStarted = false
     
-    // Флаг, чтобы анимация не прерывалась спамом нажатий
-    private var isAnimating = false
+    private var isProcessing = false
+    private var hasAutoStarted = false
 
     companion object {
         private const val REQUEST_VPN = 1
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
-        // --- ГРАДИЕНТЫ (Подкручены для идеального перехода в черный) ---
-        
-        // Фиолетовый (Выкл)
+        // Ваши цвета + больше черного внизу для плавности
         private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#332E67"), // Верх
+            Color.parseColor("#332E67"),
             Color.parseColor("#2F2A5E"),
+            Color.parseColor("#2D2757"),
             Color.parseColor("#27224A"),
             Color.parseColor("#1E1B3A"),
             Color.parseColor("#18162B"),
             Color.parseColor("#110F1C"),
-            Color.parseColor("#060807"), // Начало черного
-            Color.parseColor("#060807"), // Усиление низа
-            Color.parseColor("#060807")  // Еще больше черного внизу
+            Color.parseColor("#0B0B11"),
+            Color.parseColor("#060807"),
+            Color.parseColor("#060807"), 
+            Color.parseColor("#060807")  
         )
 
-        // Зеленый (Вкл)
         private val ON_COLORS = intArrayOf(
-            Color.parseColor("#0F4D34"), // Верх
+            Color.parseColor("#0F4D34"),
             Color.parseColor("#0D462F"),
             Color.parseColor("#0C3E29"),
             Color.parseColor("#0B3323"),
             Color.parseColor("#09291C"),
-            Color.parseColor("#060807"), // Плавный уход в черный
+            Color.parseColor("#060807"),
             Color.parseColor("#060807"),
             Color.parseColor("#060807")
         )
@@ -86,8 +84,7 @@ class MainActivity : Activity() {
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            // Обновляем статус только если мы не в процессе красивой анимации ручного нажатия
-            if (!isAnimating && intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
+            if (!isProcessing && intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
                 updateUIState()
             }
         }
@@ -96,65 +93,65 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Системные бары
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#060807") // Идеальный черный низ
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
+        window.navigationBarColor = Color.parseColor("#060807")
 
-        // --- СТРУКТУРА UI ---
+        // 1. Главный контейнер (фон и центровка)
+        mainContainer = FrameLayout(this)
         
-        mainLayout = LinearLayout(this).apply {
+        // 2. Вертикальный слой для Текста и Адреса
+        contentLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 0, 0, 0)
         }
 
-        // 1. Текст статуса
+        // ТЕКСТ СТАТУСА (Сверху)
         statusText = TextView(this).apply {
-            textSize = 24f // Чуть крупнее и мягче
+            textSize = 22f
             setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
-            alpha = 0.9f
-            // Большой отступ сверху для баланса
-            setPadding(0, 300, 0, 0) 
+            setPadding(0, 200, 0, 0) 
         }
 
-        // 2. Контейнер для кнопки и спиннера (чтобы они были друг над другом)
-        val buttonContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(450, 450).apply {
-                topMargin = 150 // Отступ от текста до кнопки
+        // КОНТЕЙНЕР КНОПКИ (По центру)
+        val centerBox = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(550, 550).apply {
+                topMargin = 250 
             }
         }
 
-        // Сама кнопка
+        // СПИННЕР (Крутится ВОКРУГ кнопки, поэтому он больше)
+        orbitSpinner = ProgressBar(this).apply {
+            visibility = View.INVISIBLE
+            indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
+            // Размер больше кнопки
+            layoutParams = FrameLayout.LayoutParams(550, 550).apply {
+                gravity = Gravity.CENTER
+            }
+        }
+
+        // КНОПКА ПИТАНИЯ
         powerButton = ImageButton(this).apply {
-            // Рисуем иконку
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
                     val paint = Paint().apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = 9f // Чуть жирнее
+                        strokeWidth = 8f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(12f, 0f, 0f, Color.parseColor("#60000000"))
+                        setShadowLayer(8f, 0f, 0f, Color.parseColor("#40000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
-                    val r = w / 3.6f
-                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 25f, 310f, false, paint)
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.35f, paint)
+                    val r = w / 3.5f
+                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 20f, 320f, false, paint)
+                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
                 }
                 override fun setAlpha(alpha: Int) {}
                 override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
@@ -162,10 +159,9 @@ class MainActivity : Activity() {
             }
             setImageDrawable(icon)
             
-            // Фон кнопки
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#15FFFFFF")) // Очень мягкий фон
+                setColor(Color.parseColor("#10FFFFFF"))
                 setStroke(3, Color.parseColor("#40FFFFFF"))
             }
             val pressed = GradientDrawable().apply {
@@ -177,37 +173,32 @@ class MainActivity : Activity() {
             states.addState(intArrayOf(), normal)
             background = states
             
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        }
-
-        // Крутилка загрузки (Спиннер)
-        loadingSpinner = ProgressBar(this).apply {
-            visibility = View.INVISIBLE
-            indeterminateTintList = ColorStateList.valueOf(Color.WHITE) // Белый по умолчанию
-            layoutParams = FrameLayout.LayoutParams(350, 350).apply {
+            // Размер кнопки меньше спиннера
+            layoutParams = FrameLayout.LayoutParams(400, 400).apply {
                 gravity = Gravity.CENTER
             }
         }
 
-        buttonContainer.addView(powerButton)
-        buttonContainer.addView(loadingSpinner)
-
-        // 3. IP Адрес
+        // АДРЕС (Снизу)
         proxyAddress = TextView(this).apply {
-            textSize = 13f
+            textSize = 14f
             setTextColor(Color.parseColor("#40FFFFFF"))
             gravity = Gravity.CENTER
-            letterSpacing = 0.05f
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 120
+            params.topMargin = 150
             layoutParams = params
         }
 
-        mainLayout.addView(statusText)
-        mainLayout.addView(buttonContainer)
-        mainLayout.addView(proxyAddress)
-        
-        setContentView(mainLayout)
+        // Сборка матрешки
+        centerBox.addView(orbitSpinner)
+        centerBox.addView(powerButton)
+
+        contentLayout.addView(statusText)
+        contentLayout.addView(centerBox)
+        contentLayout.addView(proxyAddress)
+
+        mainContainer.addView(contentLayout)
+        setContentView(mainContainer)
 
         // --- ЛОГИКА ---
 
@@ -224,7 +215,7 @@ class MainActivity : Activity() {
         }
 
         powerButton.setOnClickListener {
-            performSwitchAnimation()
+            handleUserClick()
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -236,14 +227,13 @@ class MainActivity : Activity() {
         
         if (savedInstanceState == null && !hasAutoStarted && appStatus.first == AppStatus.Halted) {
             hasAutoStarted = true
-            // Для автозапуска анимацию делать не обязательно, просто включаем
             powerButton.postDelayed({ start() }, 300) 
         }
     }
 
     override fun onResume() {
         super.onResume()
-        updateUIState()
+        if (!isProcessing) updateUIState()
     }
 
     override fun onDestroy() {
@@ -257,44 +247,31 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- КРАСИВАЯ АНИМАЦИЯ ПЕРЕКЛЮЧЕНИЯ ---
-    private fun performSwitchAnimation() {
-        if (isAnimating) return
-        isAnimating = true
+    private fun handleUserClick() {
+        if (isProcessing) return
+        isProcessing = true
+        powerButton.isEnabled = false // Блокируем спам
         
         powerButton.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
         
-        // 1. Скрываем иконку питания
-        powerButton.imageAlpha = 0 // Прозрачная
+        // Показываем спиннер вокруг
+        orbitSpinner.visibility = View.VISIBLE
         
-        // 2. Показываем спиннер
-        loadingSpinner.visibility = View.VISIBLE
-        
-        val targetStatus = if (appStatus.first == AppStatus.Halted) "ON" else "OFF"
-        
-        // Красим спиннер в цвет будущего состояния
-        val spinnerColor = if (targetStatus == "ON") Color.parseColor("#2ECC71") else Color.parseColor("#A0A0A0")
-        loadingSpinner.indeterminateTintList = ColorStateList.valueOf(spinnerColor)
+        // Определяем цвет спиннера (если сейчас выкл -> включим -> значит будет зеленый)
+        val futureColor = if (appStatus.first == AppStatus.Halted) "#2ECC71" else "#A0A0A0"
+        orbitSpinner.indeterminateTintList = ColorStateList.valueOf(Color.parseColor(futureColor))
 
-        // 3. Ждем секунду для красоты (эмуляция процесса)
-        mainLayout.postDelayed({
-            // Переключаем сервис
+        // Задержка 2 секунды (как просили)
+        mainContainer.postDelayed({
             val (status, _) = appStatus
             if (status == AppStatus.Halted) start() else stop()
             
-            // 4. Обновляем интерфейс
             updateUIState()
             
-            // 5. Возвращаем иконку
-            loadingSpinner.visibility = View.INVISIBLE
-            
-            // Плавное появление иконки обратно
-            val fade = ObjectAnimator.ofInt(powerButton, "imageAlpha", 0, 255)
-            fade.duration = 300
-            fade.start()
-            
-            isAnimating = false
-        }, 800) // 800мс задержка для плавности
+            orbitSpinner.visibility = View.INVISIBLE
+            isProcessing = false
+            powerButton.isEnabled = true
+        }, 2000)
     }
 
     private fun start() {
@@ -323,27 +300,25 @@ class MainActivity : Activity() {
 
         proxyAddress.text = "$ip:$port"
 
-        // Анимация перехода цвета фона
-        // (Создаем новый Drawable каждый раз для надежности)
-        
         if (status == AppStatus.Running) {
-            // --- ВКЛЮЧЕНО ---
+            // ВКЛЮЧЕНО
             statusText.text = "Подключён"
-            statusText.setTextColor(Color.parseColor("#2ECC71")) // Зеленый
+            statusText.setTextColor(Color.parseColor("#2ECC71"))
             
-            val onGradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
-            mainLayout.background = onGradient
+            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
+            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
+            mainContainer.background = gradient
             
             // Кнопка светится
             val glow = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#152ECC71"))
-                setStroke(6, Color.parseColor("#2ECC71"))
+                setStroke(5, Color.parseColor("#2ECC71"))
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#302ECC71"))
-                setStroke(6, Color.parseColor("#2ECC71"))
+                setStroke(5, Color.parseColor("#2ECC71"))
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
@@ -351,12 +326,13 @@ class MainActivity : Activity() {
             powerButton.background = states
             
         } else {
-            // --- ВЫКЛЮЧЕНО ---
+            // ВЫКЛЮЧЕНО
             statusText.text = "Нет связи"
-            statusText.setTextColor(Color.parseColor("#A0A0A0")) // Серый
+            statusText.setTextColor(Color.parseColor("#A0A0A0"))
             
-            val offGradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
-            mainLayout.background = offGradient
+            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
+            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
+            mainContainer.background = gradient
             
             // Кнопка спокойная
             val normal = GradientDrawable().apply {
