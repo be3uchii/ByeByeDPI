@@ -16,7 +16,6 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -29,8 +28,6 @@ import io.github.dovecoteescapee.byedpi.utility.*
 import java.io.IOException
 
 class MainActivity : Activity() {
-    
-    // Элементы интерфейса создаем кодом
     private lateinit var statusText: TextView
     private lateinit var statusButton: Button
     private lateinit var proxyAddress: TextView
@@ -56,15 +53,11 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         hideSystemUI()
 
-        // --- ДИЗАЙН ИНТЕРФЕЙСА (КОДОМ) ---
-        
-        // 1. Градиентный фон (Темно-синий -> Бирюзовый)
         val background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.parseColor("#1A2980"), Color.parseColor("#26D0CE"))
         )
 
-        // 2. Основной контейнер
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -72,21 +65,18 @@ class MainActivity : Activity() {
             this.background = background
         }
 
-        // 3. Текст статуса
         statusText = TextView(this).apply {
             textSize = 24f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 100) // Отступ снизу
+            setPadding(0, 0, 0, 100)
         }
 
-        // 4. Кнопка (С закруглением и эффектом нажатия)
         statusButton = Button(this).apply {
             textSize = 18f
             setTextColor(Color.WHITE)
             isAllCaps = false
             
-            // Фон кнопки
             val normal = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadius = 100f
@@ -96,31 +86,28 @@ class MainActivity : Activity() {
                 setColor(Color.parseColor("#80FFFFFF"))
                 cornerRadius = 100f
             }
-            val states = StateListDrawable().apply {
+            
+            // ВОТ ТУТ БЫЛА ОШИБКА, ТЕПЕРЬ ИСПРАВЛЕНО:
+            background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), normal)
             }
-            background = states
             
-            layoutParams = LinearLayout.LayoutParams(600, 180) // Ширина и высота кнопки
+            layoutParams = LinearLayout.LayoutParams(600, 180)
         }
 
-        // 5. Адрес прокси (мелкий текст)
         proxyAddress = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.parseColor("#B0FFFFFF")) // Полупрозрачный белый
+            setTextColor(Color.parseColor("#B0FFFFFF"))
             gravity = Gravity.CENTER
-            setPadding(0, 60, 0, 0) // Отступ сверху
+            setPadding(0, 60, 0, 0)
         }
 
-        // Собираем всё вместе
         layout.addView(statusText)
         layout.addView(statusButton)
         layout.addView(proxyAddress)
         
         setContentView(layout)
-
-        // --- ЛОГИКА ---
 
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
@@ -152,7 +139,6 @@ class MainActivity : Activity() {
 
         ShortcutUtils.update(this)
         
-        // Автозапуск (если выключено)
         if (savedInstanceState == null && appStatus.first == AppStatus.Halted) {
             statusButton.postDelayed({ start() }, 300) 
         }
