@@ -1,42 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_vertical"
+    android:padding="16dp"
     tools:context=".activities.MainActivity">
 
-    <com.google.android.material.button.MaterialButton
+    <Button
         android:id="@+id/status_button"
-        android:backgroundTint="?attr/colorPrimary"
-        android:textColor="?attr/colorOnPrimary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
-        android:paddingLeft="10pt"
-        android:paddingTop="5pt"
-        android:paddingRight="10pt"
-        android:paddingBottom="5pt"
+        android:padding="16dp"
+        android:textSize="20sp"
         android:textAllCaps="false"
-        android:textSize="24sp"
         tools:text="@string/vpn_connect" />
 
-    <com.google.android.material.textview.MaterialTextView
+    <TextView
         android:id="@+id/status_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/status_button"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
+        android:textSize="16sp"
         tools:text="@string/vpn_disconnected" />
 
-    <com.google.android.material.textview.MaterialTextView
+    <TextView
         android:id="@+id/proxy_address"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/status_text"
         android:layout_centerHorizontal="true"
+        android:layout_marginTop="8dp"
         tools:text="127.0.0.1:1080" />
 
 </RelativeLayout>
