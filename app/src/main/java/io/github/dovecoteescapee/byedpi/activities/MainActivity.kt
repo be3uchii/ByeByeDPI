@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -22,12 +21,9 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
@@ -35,14 +31,10 @@ import io.github.dovecoteescapee.byedpi.utility.*
 import java.io.IOException
 
 class MainActivity : Activity() {
-    private lateinit var mainContainer: FrameLayout
-    private lateinit var contentLayout: LinearLayout
+    private lateinit var mainLayout: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var powerButton: ImageButton
-    private lateinit var orbitSpinner: ProgressBar
     private lateinit var proxyAddress: TextView
-    
-    private var isProcessing = false
     private var hasAutoStarted = false
 
     companion object {
@@ -50,90 +42,81 @@ class MainActivity : Activity() {
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
-        // Ваши цвета + больше черного внизу для плавности
         private val OFF_COLORS = intArrayOf(
             Color.parseColor("#332E67"),
-            Color.parseColor("#2F2A5E"),
-            Color.parseColor("#2D2757"),
-            Color.parseColor("#27224A"),
-            Color.parseColor("#1E1B3A"),
-            Color.parseColor("#18162B"),
-            Color.parseColor("#110F1C"),
-            Color.parseColor("#0B0B11"),
-            Color.parseColor("#060807"),
-            Color.parseColor("#060807"), 
-            Color.parseColor("#060807")  
+            Color.parseColor("#302B62"),
+            Color.parseColor("#2D285D"),
+            Color.parseColor("#2A2558"),
+            Color.parseColor("#272353"),
+            Color.parseColor("#24204E"),
+            Color.parseColor("#211D49"),
+            Color.parseColor("#1E1A44"),
+            Color.parseColor("#1B173F"),
+            Color.parseColor("#18143A"),
+            Color.parseColor("#151135"),
+            Color.parseColor("#120E30"),
+            Color.parseColor("#0F0B2B"),
+            Color.parseColor("#0C0826"),
+            Color.parseColor("#090521"),
+            Color.parseColor("#060807")
         )
 
         private val ON_COLORS = intArrayOf(
             Color.parseColor("#0F4D34"),
-            Color.parseColor("#0D462F"),
-            Color.parseColor("#0C3E29"),
-            Color.parseColor("#0B3323"),
-            Color.parseColor("#09291C"),
-            Color.parseColor("#060807"),
-            Color.parseColor("#060807"),
+            Color.parseColor("#0E4932"),
+            Color.parseColor("#0D4530"),
+            Color.parseColor("#0C412E"),
+            Color.parseColor("#0B3D2C"),
+            Color.parseColor("#0A392A"),
+            Color.parseColor("#093528"),
+            Color.parseColor("#083126"),
+            Color.parseColor("#072D24"),
+            Color.parseColor("#062922"),
+            Color.parseColor("#052520"),
+            Color.parseColor("#04211E"),
+            Color.parseColor("#031D1C"),
+            Color.parseColor("#02191A"),
+            Color.parseColor("#011518"),
+            Color.parseColor("#001116"),
             Color.parseColor("#060807")
         )
-
-        private fun collectLogs(): String? =
-            try {
-                Runtime.getRuntime().exec("logcat *:D -d").inputStream.bufferedReader().use { it.readText() }
-            } catch (e: Exception) { null }
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (!isProcessing && intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
-                updateUIState()
-            }
+            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) updateStatus()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.parseColor("#060807")
-
-        // 1. Главный контейнер (фон и центровка)
-        mainContainer = FrameLayout(this)
         
-        // 2. Вертикальный слой для Текста и Адреса
-        contentLayout = LinearLayout(this).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        )
+
+        mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 0, 0, 0)
         }
 
-        // ТЕКСТ СТАТУСА (Сверху)
         statusText = TextView(this).apply {
             textSize = 22f
             setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
-            setPadding(0, 200, 0, 0) 
+            setPadding(0, 250, 0, 0)
         }
 
-        // КОНТЕЙНЕР КНОПКИ (По центру)
-        val centerBox = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(550, 550).apply {
-                topMargin = 250 
-            }
-        }
-
-        // СПИННЕР (Крутится ВОКРУГ кнопки, поэтому он больше)
-        orbitSpinner = ProgressBar(this).apply {
-            visibility = View.INVISIBLE
-            indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
-            // Размер больше кнопки
-            layoutParams = FrameLayout.LayoutParams(550, 550).apply {
-                gravity = Gravity.CENTER
-            }
-        }
-
-        // КНОПКА ПИТАНИЯ
         powerButton = ImageButton(this).apply {
             val icon = object : Drawable() {
                 override fun draw(canvas: Canvas) {
@@ -143,7 +126,7 @@ class MainActivity : Activity() {
                         strokeWidth = 8f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(8f, 0f, 0f, Color.parseColor("#40000000"))
+                        setShadowLayer(12f, 0f, 2f, Color.parseColor("#40000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
@@ -159,48 +142,25 @@ class MainActivity : Activity() {
             }
             setImageDrawable(icon)
             
-            val normal = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#10FFFFFF"))
-                setStroke(3, Color.parseColor("#40FFFFFF"))
-            }
-            val pressed = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#30FFFFFF"))
-            }
-            val states = StateListDrawable()
-            states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
-            states.addState(intArrayOf(), normal)
-            background = states
-            
-            // Размер кнопки меньше спиннера
-            layoutParams = FrameLayout.LayoutParams(400, 400).apply {
-                gravity = Gravity.CENTER
-            }
+            val params = LinearLayout.LayoutParams(450, 450)
+            params.topMargin = 200
+            layoutParams = params
         }
 
-        // АДРЕС (Снизу)
         proxyAddress = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.parseColor("#40FFFFFF"))
+            setTextColor(Color.parseColor("#30FFFFFF"))
             gravity = Gravity.CENTER
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             params.topMargin = 150
             layoutParams = params
         }
 
-        // Сборка матрешки
-        centerBox.addView(orbitSpinner)
-        centerBox.addView(powerButton)
-
-        contentLayout.addView(statusText)
-        contentLayout.addView(centerBox)
-        contentLayout.addView(proxyAddress)
-
-        mainContainer.addView(contentLayout)
-        setContentView(mainContainer)
-
-        // --- ЛОГИКА ---
+        mainLayout.addView(statusText)
+        mainLayout.addView(powerButton)
+        mainLayout.addView(proxyAddress)
+        
+        setContentView(mainLayout)
 
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
@@ -215,7 +175,15 @@ class MainActivity : Activity() {
         }
 
         powerButton.setOnClickListener {
-            handleUserClick()
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            powerButton.isClickable = false
+            hasAutoStarted = true
+            val (status, _) = appStatus
+            when (status) {
+                AppStatus.Halted -> start()
+                AppStatus.Running -> stop()
+            }
+            powerButton.postDelayed({ powerButton.isClickable = true }, 500)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -233,7 +201,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (!isProcessing) updateUIState()
+        updateStatus()
     }
 
     override fun onDestroy() {
@@ -245,33 +213,6 @@ class MainActivity : Activity() {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
         }
-    }
-
-    private fun handleUserClick() {
-        if (isProcessing) return
-        isProcessing = true
-        powerButton.isEnabled = false // Блокируем спам
-        
-        powerButton.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-        
-        // Показываем спиннер вокруг
-        orbitSpinner.visibility = View.VISIBLE
-        
-        // Определяем цвет спиннера (если сейчас выкл -> включим -> значит будет зеленый)
-        val futureColor = if (appStatus.first == AppStatus.Halted) "#2ECC71" else "#A0A0A0"
-        orbitSpinner.indeterminateTintList = ColorStateList.valueOf(Color.parseColor(futureColor))
-
-        // Задержка 2 секунды (как просили)
-        mainContainer.postDelayed({
-            val (status, _) = appStatus
-            if (status == AppStatus.Halted) start() else stop()
-            
-            updateUIState()
-            
-            orbitSpinner.visibility = View.INVISIBLE
-            isProcessing = false
-            powerButton.isEnabled = true
-        }, 2000)
     }
 
     private fun start() {
@@ -293,7 +234,7 @@ class MainActivity : Activity() {
         ServiceManager.stop(this)
     }
 
-    private fun updateUIState() {
+    private fun updateStatus() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
@@ -301,24 +242,29 @@ class MainActivity : Activity() {
         proxyAddress.text = "$ip:$port"
 
         if (status == AppStatus.Running) {
-            // ВКЛЮЧЕНО
             statusText.text = "Подключён"
-            statusText.setTextColor(Color.parseColor("#2ECC71"))
+            statusText.setTextColor(Color.parseColor("#4AE68A"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
-            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
-            mainContainer.background = gradient
+            val onGradient = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                ON_COLORS
+            ).apply {
+                    cornerRadius = 0f
+                    alpha = 220
+            }
+            mainLayout.background = onGradient
             
-            // Кнопка светится
             val glow = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#152ECC71"))
-                setStroke(5, Color.parseColor("#2ECC71"))
+                setColor(Color.parseColor("#104AE68A"))
+                setStroke(6, Color.parseColor("#4AE68A"))
+                alpha = 180
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#302ECC71"))
-                setStroke(5, Color.parseColor("#2ECC71"))
+                setColor(Color.parseColor("#304AE68A"))
+                setStroke(6, Color.parseColor("#4AE68A"))
+                alpha = 220
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
@@ -326,24 +272,29 @@ class MainActivity : Activity() {
             powerButton.background = states
             
         } else {
-            // ВЫКЛЮЧЕНО
             statusText.text = "Нет связи"
             statusText.setTextColor(Color.parseColor("#A0A0A0"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
-            gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
-            mainContainer.background = gradient
+            val offGradient = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                OFF_COLORS
+            ).apply {
+                cornerRadius = 0f
+                alpha = 200
+            }
+            mainLayout.background = offGradient
             
-            // Кнопка спокойная
             val normal = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#40FFFFFF"))
+                setStroke(3, Color.parseColor("#30FFFFFF"))
+                alpha = 180
             }
             val pressed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#20FFFFFF"))
-                setStroke(3, Color.parseColor("#60FFFFFF"))
+                setColor(Color.parseColor("#15FFFFFF"))
+                setStroke(3, Color.parseColor("#50FFFFFF"))
+                alpha = 200
             }
             val states = StateListDrawable()
             states.addState(intArrayOf(android.R.attr.state_pressed), pressed)
