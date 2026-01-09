@@ -7,55 +7,120 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.*
-import io.github.dovecoteescapee.byedpi.databinding.ActivityMainBinding
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
 import io.github.dovecoteescapee.byedpi.utility.*
 import java.io.IOException
 
 class MainActivity : Activity() {
-    private lateinit var binding: ActivityMainBinding
+    
+    // Элементы интерфейса создаем кодом
+    private lateinit var statusText: TextView
+    private lateinit var statusButton: Button
+    private lateinit var proxyAddress: TextView
 
     companion object {
-        private val TAG: String = MainActivity::class.java.simpleName
         private const val REQUEST_VPN = 1
         private const val REQUEST_LOGS = 2
         private const val REQUEST_NOTIFICATIONS = 3
 
         private fun collectLogs(): String? =
             try {
-                Runtime.getRuntime()
-                    .exec("logcat *:D -d")
-                    .inputStream.bufferedReader()
-                    .use { it.readText() }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to collect logs", e)
-                null
-            }
+                Runtime.getRuntime().exec("logcat *:D -d").inputStream.bufferedReader().use { it.readText() }
+            } catch (e: Exception) { null }
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent == null) return
-            when (intent.action) {
-                STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST -> updateStatus()
-            }
+            if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) updateStatus()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        hideSystemUI()
 
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        // --- ДИЗАЙН ИНТЕРФЕЙСА (КОДОМ) ---
+        
+        // 1. Градиентный фон (Темно-синий -> Бирюзовый)
+        val background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.parseColor("#1A2980"), Color.parseColor("#26D0CE"))
+        )
+
+        // 2. Основной контейнер
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(60, 60, 60, 60)
+            this.background = background
+        }
+
+        // 3. Текст статуса
+        statusText = TextView(this).apply {
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 100) // Отступ снизу
+        }
+
+        // 4. Кнопка (С закруглением и эффектом нажатия)
+        statusButton = Button(this).apply {
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            isAllCaps = false
+            
+            // Фон кнопки
+            val normal = GradientDrawable().apply {
+                setColor(Color.parseColor("#40FFFFFF"))
+                cornerRadius = 100f
+                setStroke(3, Color.WHITE)
+            }
+            val pressed = GradientDrawable().apply {
+                setColor(Color.parseColor("#80FFFFFF"))
+                cornerRadius = 100f
+            }
+            val states = StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_pressed), pressed)
+                addState(intArrayOf(), normal)
+            }
+            background = states
+            
+            layoutParams = LinearLayout.LayoutParams(600, 180) // Ширина и высота кнопки
+        }
+
+        // 5. Адрес прокси (мелкий текст)
+        proxyAddress = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.parseColor("#B0FFFFFF")) // Полупрозрачный белый
+            gravity = Gravity.CENTER
+            setPadding(0, 60, 0, 0) // Отступ сверху
+        }
+
+        // Собираем всё вместе
+        layout.addView(statusText)
+        layout.addView(statusButton)
+        layout.addView(proxyAddress)
+        
+        setContentView(layout)
+
+        // --- ЛОГИКА ---
 
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
@@ -69,14 +134,15 @@ class MainActivity : Activity() {
             registerReceiver(receiver, intentFilter)
         }
 
-        binding.statusButton.setOnClickListener {
-            binding.statusButton.isClickable = false
+        statusButton.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            statusButton.isClickable = false
             val (status, _) = appStatus
             when (status) {
                 AppStatus.Halted -> start()
                 AppStatus.Running -> stop()
             }
-            binding.statusButton.postDelayed({ binding.statusButton.isClickable = true }, 1000)
+            statusButton.postDelayed({ statusButton.isClickable = true }, 1000)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -84,16 +150,27 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
         }
 
-        if (getPreferences().getBoolean("auto_connect", false) && appStatus.first != AppStatus.Running) {
-            this.start()
-        }
-        
         ShortcutUtils.update(this)
+        
+        // Автозапуск (если выключено)
+        if (savedInstanceState == null && appStatus.first == AppStatus.Halted) {
+            statusButton.postDelayed({ start() }, 300) 
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        hideSystemUI()
         updateStatus()
+    }
+
+    private fun hideSystemUI() {
+        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN)
     }
 
     override fun onDestroy() {
@@ -101,44 +178,14 @@ class MainActivity : Activity() {
         unregisterReceiver(receiver)
     }
 
-    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_VPN) {
-            if (resultCode == RESULT_OK) {
-                ServiceManager.start(this, Mode.VPN)
-            } else {
-                Toast.makeText(this, R.string.vpn_permission_denied, Toast.LENGTH_SHORT).show()
-                updateStatus()
-            }
-        } else if (requestCode == REQUEST_LOGS && resultCode == RESULT_OK) {
-            val uri = data?.data
-            if (uri != null) {
-                saveLogsToUri(uri)
-            }
+        if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
+            ServiceManager.start(this, Mode.VPN)
         }
     }
 
-    private fun saveLogsToUri(uri: Uri) {
-        Thread {
-            val logs = collectLogs()
-            if (logs == null) {
-                runOnUiThread {
-                    Toast.makeText(this, R.string.logs_failed, Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                try {
-                    contentResolver.openOutputStream(uri)?.use {
-                        it.write(logs.toByteArray())
-                    }
-                } catch (e: IOException) {
-                    Log.e(TAG, "Failed to save logs", e)
-                }
-            }
-        }.start()
-    }
-
     private fun start() {
+        if (appStatus.first == AppStatus.Running) return
         when (getPreferences().mode()) {
             Mode.VPN -> {
                 val intentPrepare = VpnService.prepare(this)
@@ -161,14 +208,16 @@ class MainActivity : Activity() {
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
 
-        binding.proxyAddress.text = getString(R.string.proxy_address, ip, port)
+        proxyAddress.text = getString(R.string.proxy_address, ip, port)
 
         if (status == AppStatus.Running) {
-            binding.statusText.setText(if (mode == Mode.VPN) R.string.vpn_connected else R.string.proxy_up)
-            binding.statusButton.setText(if (mode == Mode.VPN) R.string.vpn_disconnect else R.string.proxy_stop)
+            statusText.text = if (mode == Mode.VPN) getString(R.string.vpn_connected) else getString(R.string.proxy_up)
+            statusButton.text = if (mode == Mode.VPN) getString(R.string.vpn_disconnect) else getString(R.string.proxy_stop)
+            statusButton.alpha = 0.8f
         } else {
-            binding.statusText.setText(if (prefs.mode() == Mode.VPN) R.string.vpn_disconnected else R.string.proxy_down)
-            binding.statusButton.setText(if (prefs.mode() == Mode.VPN) R.string.vpn_connect else R.string.proxy_start)
+            statusText.text = if (prefs.mode() == Mode.VPN) getString(R.string.vpn_disconnected) else getString(R.string.proxy_down)
+            statusButton.text = if (prefs.mode() == Mode.VPN) getString(R.string.vpn_connect) else getString(R.string.proxy_start)
+            statusButton.alpha = 1.0f
         }
     }
 }
