@@ -24,16 +24,30 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      # ГЕНЕРАЦИЯ КЛЮЧА ПОДПИСИ (Решает проблему "Not Installed")
+      - name: Generate Keystore
+        run: |
+          keytool -genkeypair -v \
+          -keystore app/release.keystore \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -alias release_key \
+          -dname "CN=MaxdiVPN, OU=Dev, O=Maxdi, L=Unknown, S=Unknown, C=US" \
+          -storepass android_secure \
+          -keypass android_secure
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
       - name: Build Release APK
         run: ./gradlew :app:assembleRelease
 
-      - name: Upload Release APK
+      - name: Upload Release APKs
         uses: actions/upload-artifact@v4
         with:
           name: MaxdiVPN-release
+          # Загружаем только созданные сплиты (arm64 и arm7)
           path: app/build/outputs/apk/release/*.apk
           compression-level: 9
           retention-days: 5
