@@ -511,7 +511,7 @@ class MainActivity : Activity() {
         }
     }
 
-    updateUIState() {
+    private fun updateUIState() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
