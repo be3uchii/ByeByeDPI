@@ -27,16 +27,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew :app:assembleDebug
+      - name: Build Release APK
+        run: ./gradlew :app:assembleRelease
 
-      # Я добавил этот шаг, чтобы в логах было видно, где именно лежит файл (на случай проблем)
-      - name: List APKs
-        run: find . -name "*.apk"
-
-      - name: Upload APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: '**/*.apk'  # <--- ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ (звездочки найдут файл везде)
+          name: MaxdiVPN-release
+          path: app/build/outputs/apk/release/*.apk
+          compression-level: 9
+          retention-days: 5
           
