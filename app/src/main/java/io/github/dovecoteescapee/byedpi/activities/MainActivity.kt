@@ -62,17 +62,17 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATIONS = 3
 
         private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#1A1A2E"),
-            Color.parseColor("#16213E"),
-            Color.parseColor("#0F3460"),
-            Color.BLACK
+            Color.parseColor("#121212"),
+            Color.parseColor("#1E1E2C"),
+            Color.parseColor("#252538"),
+            Color.parseColor("#151520")
         )
 
         private val ON_COLORS = intArrayOf(
-            Color.parseColor("#051e13"),
-            Color.parseColor("#0a3d2e"),
-            Color.parseColor("#0f5c45"),
-            Color.parseColor("#000000")
+            Color.parseColor("#001510"),
+            Color.parseColor("#002B20"),
+            Color.parseColor("#00382A"),
+            Color.parseColor("#001A12")
         )
     }
 
@@ -123,16 +123,17 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            textSize = if (isTvMode) 18f else 24f
+            textSize = if (isTvMode) 16f else 20f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#A0A0A0"))
+            setTextColor(Color.parseColor("#808080"))
             gravity = Gravity.CENTER
-            setPadding(0, if (isTvMode) 40 else 180, 0, 0)
-            letterSpacing = 0.1f
+            setPadding(0, if (isTvMode) 40 else 160, 0, 0)
+            letterSpacing = 0.15f
+            text = "ГОТОВО"
         }
 
-        val btnSize = if (isTvMode) 260 else 420
-        val btnMargin = if (isTvMode) 30 else 120
+        val btnSize = if (isTvMode) 240 else 380
+        val btnMargin = if (isTvMode) 30 else 100
 
         powerButton = ImageButton(this).apply {
             isFocusable = true
@@ -143,18 +144,18 @@ class MainActivity : Activity() {
                     val paint = Paint().apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = if (isTvMode) 8f else 10f
+                        strokeWidth = 8f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(12f, 0f, 0f, Color.parseColor("#60000000"))
+                        setShadowLayer(10f, 0f, 0f, Color.parseColor("#80000000"))
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
-                    val r = w / 3.2f
+                    val r = w / 3.5f
                     canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 20f, 320f, false, paint)
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.35f, paint)
+                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
                 }
                 override fun setAlpha(alpha: Int) {}
                 override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
@@ -171,62 +172,67 @@ class MainActivity : Activity() {
             }
         }
 
+        // Блок статистики (Glassmorphism)
         statsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
+            
+            // Полупрозрачный фон, сливающийся с темой
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#20FFFFFF"))
-                cornerRadius = 40f
-                setStroke(2, Color.parseColor("#15FFFFFF"))
+                setColor(Color.parseColor("#15FFFFFF")) 
+                cornerRadius = 30f
+                setStroke(1, Color.parseColor("#10FFFFFF"))
             }
-            setPadding(60, 40, 60, 40)
+            setPadding(50, 30, 50, 30)
             
             layoutParams = LinearLayout.LayoutParams(
-                if (isTvMode) 500 else 800, 
+                if (isTvMode) 400 else 600, 
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
+                setMargins(0, 20, 0, 0)
             }
         }
 
         timerLabel = TextView(this).apply {
-            text = "ВРЕМЯ СЕССИИ"
-            textSize = 10f
-            setTextColor(Color.parseColor("#80FFFFFF"))
+            text = "BPЕМЯ"
+            textSize = 9f
+            setTextColor(Color.parseColor("#60FFFFFF"))
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
         }
 
         timerValue = TextView(this).apply {
             text = "00:00:00"
-            textSize = 32f
+            textSize = 28f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(0, 5, 0, 25)
+            setPadding(0, 0, 0, 15)
         }
         
         val divider = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 2).apply {
-                setMargins(20, 0, 20, 25)
+            layoutParams = LinearLayout.LayoutParams(100, 2).apply {
+                setMargins(0, 0, 0, 15)
+                gravity = Gravity.CENTER_HORIZONTAL
             }
-            setBackgroundColor(Color.parseColor("#15FFFFFF"))
+            setBackgroundColor(Color.parseColor("#10FFFFFF"))
         }
 
         trafficLabel = TextView(this).apply {
-            text = "ТРАФИК"
-            textSize = 10f
-            setTextColor(Color.parseColor("#80FFFFFF"))
+            text = "ДАННЫЕ"
+            textSize = 9f
+            setTextColor(Color.parseColor("#60FFFFFF"))
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
         }
 
         trafficValue = TextView(this).apply {
-            text = "↓ 0 MB   ↑ 0 MB"
-            textSize = 16f
-            setTextColor(Color.parseColor("#E0E0E0"))
+            text = "0 B"
+            textSize = 14f
+            setTextColor(Color.parseColor("#D0D0D0"))
             gravity = Gravity.CENTER
-            setPadding(0, 5, 0, 0)
+            setPadding(0, 2, 0, 0)
         }
 
         statsContainer.addView(timerLabel)
@@ -236,11 +242,11 @@ class MainActivity : Activity() {
         statsContainer.addView(trafficValue)
 
         proxyAddress = TextView(this).apply {
-            textSize = 12f
-            setTextColor(Color.parseColor("#40FFFFFF"))
+            textSize = 11f
+            setTextColor(Color.parseColor("#20FFFFFF"))
             gravity = Gravity.CENTER
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 50
+            params.topMargin = 40
             layoutParams = params
         }
 
@@ -271,7 +277,7 @@ class MainActivity : Activity() {
             val (status, _) = appStatus
             if (status == AppStatus.Halted) start() else stop()
             
-            powerButton.postDelayed({ powerButton.isClickable = true }, 500)
+            powerButton.postDelayed({ powerButton.isClickable = true }, 600)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
@@ -279,24 +285,20 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
         }
 
-        if (appStatus.first == AppStatus.Halted) {
-            getPreferences().edit()
-                .remove("session_start_ts")
-                .remove("session_rx_start")
-                .remove("session_tx_start")
-                .apply()
-        }
-
+        cleanUpInvalidState()
         ShortcutUtils.update(this)
     }
 
     override fun onResume() {
         super.onResume()
+        
+        // Исправление бага: проверяем валидность сессии при входе
         if (appStatus.first == AppStatus.Running) {
-            restoreSessionData()
+            validateAndRestoreSession()
         } else {
             resetStatsUI()
         }
+        
         updateUIState()
         
         handler.removeCallbacks(updateRunnable)
@@ -316,14 +318,25 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
-            initSessionData()
+            startNewSession()
+        }
+    }
+
+    private fun cleanUpInvalidState() {
+        if (appStatus.first != AppStatus.Running) {
+             getPreferences().edit()
+                .remove("session_start_ts")
+                .remove("session_rx_start")
+                .remove("session_tx_start")
+                .apply()
         }
     }
 
     private fun start() {
         if (appStatus.first == AppStatus.Running) return
         
-        initSessionData()
+        // Важно: Сначала сохраняем нули, чтобы UI не прыгнул
+        startNewSession()
 
         val prefs = getPreferences()
         when (prefs.mode()) {
@@ -339,11 +352,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun initSessionData() {
+    private fun startNewSession() {
+        // Захватываем текущие показания как "нулевую точку"
         startTimestamp = SystemClock.elapsedRealtime()
         startRx = TrafficStats.getUidRxBytes(Process.myUid())
         startTx = TrafficStats.getUidTxBytes(Process.myUid())
 
+        // Защита от багов системы
         if (startRx == TrafficStats.UNSUPPORTED.toLong()) startRx = 0
         if (startTx == TrafficStats.UNSUPPORTED.toLong()) startTx = 0
         
@@ -352,35 +367,49 @@ class MainActivity : Activity() {
             .putLong("session_rx_start", startRx)
             .putLong("session_tx_start", startTx)
             .apply()
+            
+        // Мгновенный сброс UI
+        updateStats()
     }
 
     private fun stop() {
         ServiceManager.stop(this)
-        getPreferences().edit()
-            .remove("session_start_ts")
-            .remove("session_rx_start")
-            .remove("session_tx_start")
-            .apply()
-        
+        cleanUpInvalidState()
         resetStatsUI()
     }
 
-    private fun restoreSessionData() {
+    private fun validateAndRestoreSession() {
         val prefs = getPreferences()
         val now = SystemClock.elapsedRealtime()
         
         if (prefs.contains("session_start_ts")) {
-            startTimestamp = prefs.getLong("session_start_ts", now)
-            startRx = prefs.getLong("session_rx_start", 0)
-            startTx = prefs.getLong("session_tx_start", 0)
+            val savedTs = prefs.getLong("session_start_ts", 0)
+            
+            // Защита от бага "60 дней": если сохраненное время неадекватно (0) или из будущего
+            if (savedTs <= 0 || savedTs > now) {
+                startNewSession() // Перезапускаем сессию тихо
+            } else {
+                startTimestamp = savedTs
+                startRx = prefs.getLong("session_rx_start", 0)
+                startTx = prefs.getLong("session_tx_start", 0)
+            }
         } else {
-            initSessionData()
+            // Если статус Running, но данных нет - создаем новые
+            startNewSession()
         }
     }
 
     private fun updateStats() {
+        // Если метка времени 0 (баг), не считаем
+        if (startTimestamp == 0L) {
+            timerValue.text = "00:00:00"
+            return
+        }
+
         val now = SystemClock.elapsedRealtime()
         val duration = now - startTimestamp
+        
+        // Финальная защита от отрицательного времени
         val safeDuration = if (duration < 0) 0 else duration
         
         val seconds = (safeDuration / 1000) % 60
@@ -392,8 +421,14 @@ class MainActivity : Activity() {
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
         
         if (currentRx != TrafficStats.UNSUPPORTED.toLong() && currentTx != TrafficStats.UNSUPPORTED.toLong()) {
-            val rx = if (currentRx >= startRx) currentRx - startRx else currentRx
-            val tx = if (currentTx >= startTx) currentTx - startTx else currentTx
+            // Считаем дельту
+            var rx = currentRx - startRx
+            var tx = currentTx - startTx
+            
+            // Защита от отрицательных значений (если система сбросила счетчики)
+            if (rx < 0) rx = 0
+            if (tx < 0) tx = 0
+            
             trafficValue.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
         }
     }
@@ -414,19 +449,18 @@ class MainActivity : Activity() {
     }
 
     private fun createButtonBackground(isRunning: Boolean): Drawable {
-        val color = if (isRunning) Color.parseColor("#2ECC71") else Color.parseColor("#40FFFFFF")
-        val glowColor = if (isRunning) Color.parseColor("#302ECC71") else Color.TRANSPARENT
+        val strokeColor = if (isRunning) Color.parseColor("#402ECC71") else Color.parseColor("#20FFFFFF")
         
         val normal = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(glowColor)
-            setStroke(if (isRunning) 6 else 3, color)
+            setColor(Color.TRANSPARENT)
+            setStroke(if (isRunning) 6 else 4, strokeColor)
         }
         
         val pressed = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (isRunning) Color.parseColor("#502ECC71") else Color.parseColor("#20FFFFFF"))
-            setStroke(if (isRunning) 6 else 3, color)
+            setColor(if (isRunning) Color.parseColor("#202ECC71") else Color.parseColor("#10FFFFFF"))
+            setStroke(if (isRunning) 6 else 4, strokeColor)
         }
         
         return StateListDrawable().apply {
@@ -444,21 +478,23 @@ class MainActivity : Activity() {
         proxyAddress.text = "$ip:$port"
 
         if (status == AppStatus.Running) {
-            statusText.text = "ЗАЩИЩЕНО"
-            statusText.setTextColor(Color.parseColor("#2ECC71"))
+            statusText.text = "АКТИВНО"
+            statusText.setTextColor(Color.parseColor("#40E0D0")) // Бирюзовый
             
             val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
+            gradient.setDither(true)
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(true)
             
         } else {
-            statusText.text = "ОТКЛЮЧЕНО"
-            statusText.setTextColor(Color.parseColor("#A0A0A0"))
+            statusText.text = "ГОТОВО"
+            statusText.setTextColor(Color.parseColor("#808080"))
             
             val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
+            gradient.setDither(true)
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(false)
