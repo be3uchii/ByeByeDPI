@@ -57,7 +57,7 @@ class MainActivity : Activity() {
     private var isTvInterface = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Session Variables (prefixed to avoid conflicts)
+    // Session Variables
     private var sessionStartTime: Long = 0
     private var sessionLastTime: Long = 0
     private var sessionStartRx: Long = 0
@@ -68,7 +68,7 @@ class MainActivity : Activity() {
     private var currentThemeGradient: IntArray? = null
     private var isDarkThemeActive = true
 
-    // Theme Interface
+    // Theme Definitions
     interface AppTheme {
         val BG_OFF: IntArray
         val BG_ON: IntArray
@@ -139,9 +139,13 @@ class MainActivity : Activity() {
 
     private val statsUpdater = object : Runnable {
         override fun run() {
-            if (appStatus.first == AppStatus.Running) {
-                calculateStats()
-                mainHandler.postDelayed(this, 1000)
+            try {
+                if (appStatus.first == AppStatus.Running) {
+                    calculateStats()
+                    mainHandler.postDelayed(this, 1000)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -149,75 +153,80 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        isDarkThemeActive = getPreferences().getBoolean(KEY_THEME, true)
+        try {
+            isDarkThemeActive = getPreferences().getBoolean(KEY_THEME, true)
+            
+            val uiManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
+            isTvInterface = uiManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
-        val uiManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
-        isTvInterface = uiManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
-                !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+            window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
 
-        window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        }
-
-        buildLayout()
-        updateTheme(false)
-
-        uiContainer.setOnApplyWindowInsetsListener { v, insets ->
-            v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
-            insets
-        }
-
-        val filter = IntentFilter().apply {
-            addAction(STARTED_BROADCAST)
-            addAction(STOPPED_BROADCAST)
-            addAction(FAILED_BROADCAST)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(statusReceiver, filter, RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(statusReceiver, filter)
-        }
-
-        uiPowerButton.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            uiPowerButton.isClickable = false
-
-            val (status, _) = appStatus
-            if (status == AppStatus.Halted) {
-                performStart()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
             } else {
-                performStop()
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             }
 
-            uiPowerButton.postDelayed({ uiPowerButton.isClickable = true }, 1000)
-        }
+            buildLayout()
+            updateTheme(false)
 
-        uiThemeToggle.setOnClickListener {
-            isDarkThemeActive = !isDarkThemeActive
-            getPreferences().edit().putBoolean(KEY_THEME, isDarkThemeActive).apply()
-            updateTheme(true)
-        }
+            uiContainer.setOnApplyWindowInsetsListener { v, insets ->
+                v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
+                insets
+            }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
-        }
+            val filter = IntentFilter().apply {
+                addAction(STARTED_BROADCAST)
+                addAction(STOPPED_BROADCAST)
+                addAction(FAILED_BROADCAST)
+            }
 
-        if (appStatus.first == AppStatus.Running) {
-            loadSession()
-        } else {
-            resetSessionUI()
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(statusReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(statusReceiver, filter)
+            }
 
-        ShortcutUtils.update(this)
+            uiPowerButton.setOnClickListener {
+                it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                uiPowerButton.isClickable = false
+
+                val (status, _) = appStatus
+                if (status == AppStatus.Halted) {
+                    performStart()
+                } else {
+                    performStop()
+                }
+
+                uiPowerButton.postDelayed({ uiPowerButton.isClickable = true }, 1000)
+            }
+
+            uiThemeToggle.setOnClickListener {
+                isDarkThemeActive = !isDarkThemeActive
+                getPreferences().edit().putBoolean(KEY_THEME, isDarkThemeActive).apply()
+                updateTheme(true)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+            }
+
+            if (appStatus.first == AppStatus.Running) {
+                loadSession()
+            } else {
+                resetSessionUI()
+            }
+
+            ShortcutUtils.update(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback safe init if needed
+        }
     }
 
     private fun buildLayout() {
@@ -377,7 +386,6 @@ class MainActivity : Activity() {
         uiTimerValue.setTextColor(theme.TEXT_MAIN)
         uiTrafficValue.setTextColor(theme.TEXT_MAIN)
         
-        // Helper to find labels
         (uiTimerValue.parent as? LinearLayout)?.getChildAt(1)?.let { (it as TextView).setTextColor(theme.TEXT_SUB) }
         (uiTrafficValue.parent as? LinearLayout)?.getChildAt(1)?.let { (it as TextView).setTextColor(theme.TEXT_SUB) }
         
@@ -419,14 +427,18 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (appStatus.first == AppStatus.Running) {
-            loadSession()
-            mainHandler.removeCallbacks(statsUpdater)
-            mainHandler.post(statsUpdater)
-        } else {
-            resetSessionUI()
+        try {
+            if (appStatus.first == AppStatus.Running) {
+                loadSession()
+                mainHandler.removeCallbacks(statsUpdater)
+                mainHandler.post(statsUpdater)
+            } else {
+                resetSessionUI()
+            }
+            refreshUiState(false)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        refreshUiState(false)
     }
 
     override fun onPause() {
@@ -436,41 +448,57 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(statusReceiver)
+        try {
+            unregisterReceiver(statusReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
         if (req == REQ_VPN && res == RESULT_OK) {
-            ServiceManager.start(this, Mode.VPN)
-            newSession()
+            try {
+                ServiceManager.start(applicationContext, Mode.VPN)
+                newSession()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
     private fun performStart() {
         if (appStatus.first == AppStatus.Running) return
-        newSession()
-        val p = getPreferences()
-        when (p.mode()) {
-            Mode.VPN -> {
-                val i = VpnService.prepare(this)
-                if (i != null) {
-                    startActivityForResult(i, REQ_VPN)
-                } else {
-                    ServiceManager.start(this, Mode.VPN)
+        try {
+            newSession()
+            val p = getPreferences()
+            when (p.mode()) {
+                Mode.VPN -> {
+                    val i = VpnService.prepare(this)
+                    if (i != null) {
+                        startActivityForResult(i, REQ_VPN)
+                    } else {
+                        ServiceManager.start(applicationContext, Mode.VPN)
+                    }
                 }
+                Mode.Proxy -> ServiceManager.start(applicationContext, Mode.Proxy)
             }
-            Mode.Proxy -> ServiceManager.start(this, Mode.Proxy)
+            mainHandler.removeCallbacks(statsUpdater)
+            mainHandler.post(statsUpdater)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        mainHandler.removeCallbacks(statsUpdater)
-        mainHandler.post(statsUpdater)
     }
 
     private fun performStop() {
-        ServiceManager.stop(this)
-        clearSession()
-        resetSessionUI()
-        mainHandler.removeCallbacks(statsUpdater)
+        try {
+            ServiceManager.stop(applicationContext)
+            clearSession()
+            resetSessionUI()
+            mainHandler.removeCallbacks(statsUpdater)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun newSession() {
@@ -596,25 +624,29 @@ class MainActivity : Activity() {
     }
 
     private fun refreshUiState(anim: Boolean) {
-        val (st, _) = appStatus
-        val p = getPreferences()
-        val (ip, port) = p.getProxyIpAndPort()
-        uiProxyAddress.text = "$ip:$port"
+        try {
+            val (st, _) = appStatus
+            val p = getPreferences()
+            val (ip, port) = p.getProxyIpAndPort()
+            uiProxyAddress.text = "$ip:$port"
 
-        val running = st == AppStatus.Running
-        uiPowerButton.setPowerState(running, anim)
+            val running = st == AppStatus.Running
+            uiPowerButton.setPowerState(running, anim)
 
-        if (running) {
-            uiStatusText.text = "АКТИВНО"
-            if (sessionStartTime == 0L) loadSession()
-            mainHandler.removeCallbacks(statsUpdater)
-            mainHandler.post(statsUpdater)
-        } else {
-            uiStatusText.text = "НЕ ПОДКЛЮЧЕНО"
-            resetSessionUI()
-            mainHandler.removeCallbacks(statsUpdater)
+            if (running) {
+                uiStatusText.text = "АКТИВНО"
+                if (sessionStartTime == 0L) loadSession()
+                mainHandler.removeCallbacks(statsUpdater)
+                mainHandler.post(statsUpdater)
+            } else {
+                uiStatusText.text = "НЕ ПОДКЛЮЧЕНО"
+                resetSessionUI()
+                mainHandler.removeCallbacks(statsUpdater)
+            }
+            updateTheme(anim)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        updateTheme(anim)
     }
 
     @SuppressLint("ViewConstructor")
@@ -779,14 +811,24 @@ class MainActivity : Activity() {
 
             cv.save()
             cv.rotate(if (dark) 0f else 180f, cx, cy)
-            pM.reset()
-            pM.addCircle(cx, cy, r, Path.Direction.CW)
-            pM.addCircle(cx - r / 2, cy - r / 2, r, Path.Direction.CW)
-            cv.clipPath(pM)
-            pS.reset()
-            pS.addCircle(cx, cy, r, Path.Direction.CW)
-            p.style = Paint.Style.FILL
-            cv.drawPath(pS, p)
+            
+            // Draw Sun rays or Moon shape safely using Path.Op if available, or simple shape
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                 pM.reset()
+                 pM.addCircle(cx, cy, r, Path.Direction.CW)
+                 val cut = Path()
+                 cut.addCircle(cx - r / 2, cy - r / 2, r, Path.Direction.CW)
+                 pM.op(cut, Path.Op.DIFFERENCE)
+                 
+                 pS.reset()
+                 pS.addCircle(cx, cy, r, Path.Direction.CW)
+                 
+                 p.style = Paint.Style.FILL
+                 cv.drawPath(if (dark) pS else pM, p)
+            } else {
+                 // Fallback for very old devices
+                 cv.drawCircle(cx, cy, r, p)
+            }
             cv.restore()
         }
 
