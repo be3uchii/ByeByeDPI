@@ -26,7 +26,6 @@ import android.os.Process
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -65,15 +64,15 @@ class MainActivity : Activity() {
 
         private val OFF_COLORS = intArrayOf(
             Color.parseColor("#1A1A2E"),
-            Color.parseColor("#16213E"),
-            Color.parseColor("#0F3460"),
+            Color.parseColor("#131a2e"),
+            Color.parseColor("#0A0A15"),
             Color.BLACK
         )
 
         private val ON_COLORS = intArrayOf(
-            Color.parseColor("#00241B"),
-            Color.parseColor("#004D3B"),
-            Color.parseColor("#00241B"),
+            Color.parseColor("#00291D"),
+            Color.parseColor("#001F16"),
+            Color.parseColor("#00120D"),
             Color.BLACK
         )
         
@@ -106,10 +105,23 @@ class MainActivity : Activity() {
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION || 
                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.BLACK
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            )
+        } else {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
+        }
 
         mainContainer = FrameLayout(this)
         
@@ -255,13 +267,7 @@ class MainActivity : Activity() {
         setContentView(mainContainer)
 
         mainContainer.setOnApplyWindowInsetsListener { v, insets ->
-            val systemBars = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                insets.getInsets(WindowInsets.Type.systemBars())
-            } else {
-                @Suppress("DEPRECATION")
-                android.graphics.Insets.of(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
-            }
-            v.setPadding(0, systemBars.top, 0, systemBars.bottom)
+            v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
             insets
         }
 
