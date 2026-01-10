@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Canvas
@@ -36,6 +37,7 @@ import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
 import io.github.dovecoteescapee.byedpi.utility.*
 import java.util.Locale
+import kotlin.math.max
 
 class MainActivity : Activity() {
     private lateinit var mainContainer: FrameLayout
@@ -53,6 +55,7 @@ class MainActivity : Activity() {
     private var isTvMode = false
     private val handler = Handler(Looper.getMainLooper())
     
+    // Переменные сессии
     private var startTimestamp: Long = 0
     private var startRx: Long = 0
     private var startTx: Long = 0
@@ -61,19 +64,26 @@ class MainActivity : Activity() {
         private const val REQUEST_VPN = 1
         private const val REQUEST_NOTIFICATIONS = 3
 
+        // Цвета фона (Выключено) - глубокий синий/черный
         private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#121212"),
-            Color.parseColor("#1E1E2C"),
-            Color.parseColor("#252538"),
-            Color.parseColor("#151520")
+            Color.parseColor("#1A1A2E"),
+            Color.parseColor("#16213E"),
+            Color.parseColor("#0F3460"),
+            Color.BLACK
         )
 
+        // Цвета фона (Включено) - глубокий изумрудный
         private val ON_COLORS = intArrayOf(
-            Color.parseColor("#001510"),
-            Color.parseColor("#002B20"),
-            Color.parseColor("#00382A"),
-            Color.parseColor("#001A12")
+            Color.parseColor("#00241B"),
+            Color.parseColor("#00382B"),
+            Color.parseColor("#004D3B"),
+            Color.parseColor("#001510")
         )
+        
+        // Ключи для сохранения состояния сессии
+        private const val PREF_SESSION_START = "session_start_ts"
+        private const val PREF_SESSION_RX = "session_rx_start"
+        private const val PREF_SESSION_TX = "session_tx_start"
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -100,11 +110,11 @@ class MainActivity : Activity() {
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION || 
                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
+        // Настройка прозрачного статус бара
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.BLACK
+        window.navigationBarColor = Color.TRANSPARENT // Делаем навигацию тоже прозрачной для полного погружения
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -112,7 +122,8 @@ class MainActivity : Activity() {
         
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
         )
 
         mainContainer = FrameLayout(this)
@@ -123,16 +134,15 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            textSize = if (isTvMode) 16f else 20f
+            textSize = if (isTvMode) 18f else 22f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#808080"))
+            setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
-            setPadding(0, if (isTvMode) 40 else 160, 0, 0)
+            setPadding(0, if (isTvMode) 40 else 180, 0, 0)
             letterSpacing = 0.15f
-            text = "ГОТОВО"
         }
 
-        val btnSize = if (isTvMode) 240 else 380
+        val btnSize = if (isTvMode) 220 else 380
         val btnMargin = if (isTvMode) 30 else 100
 
         powerButton = ImageButton(this).apply {
@@ -144,18 +154,18 @@ class MainActivity : Activity() {
                     val paint = Paint().apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = 8f
+                        strokeWidth = if (isTvMode) 8f else 12f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(10f, 0f, 0f, Color.parseColor("#80000000"))
+                        setShadowLayer(15f, 0f, 0f, Color.parseColor("#80FFFFFF")) // Добавлено свечение иконки
                     }
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
-                    val r = w / 3.5f
+                    val r = w / 3.2f
                     canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 270f + 20f, 320f, false, paint)
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.4f, paint)
+                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.35f, paint)
                 }
                 override fun setAlpha(alpha: Int) {}
                 override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
@@ -172,67 +182,72 @@ class MainActivity : Activity() {
             }
         }
 
-        // Блок статистики (Glassmorphism)
+        // Контейнер статистики - улучшенный дизайн (меньше, стеклянный)
         statsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             
-            // Полупрозрачный фон, сливающийся с темой
+            // Glassmorphism эффект
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#15FFFFFF")) 
-                cornerRadius = 30f
-                setStroke(1, Color.parseColor("#10FFFFFF"))
+                setColor(Color.parseColor("#15FFFFFF")) // Полупрозрачный белый
+                cornerRadius = 35f
+                setStroke(2, Color.parseColor("#25FFFFFF")) // Тонкая обводка
             }
+            
+            // Сделали паддинги меньше, чтобы блок был компактнее
             setPadding(50, 30, 50, 30)
             
             layoutParams = LinearLayout.LayoutParams(
-                if (isTvMode) 400 else 600, 
+                LinearLayout.LayoutParams.WRAP_CONTENT, // Ширина по содержимому
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
-                setMargins(0, 20, 0, 0)
+                // Минимальная ширина для красоты
+                width = if (isTvMode) 400 else 600
             }
         }
 
         timerLabel = TextView(this).apply {
-            text = "BPЕМЯ"
-            textSize = 9f
-            setTextColor(Color.parseColor("#60FFFFFF"))
+            text = "СЕССИЯ"
+            textSize = 10f
+            setTextColor(Color.parseColor("#80FFFFFF"))
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
+            setPadding(0,0,0,5)
         }
 
         timerValue = TextView(this).apply {
             text = "00:00:00"
-            textSize = 28f
+            textSize = 28f // Чуть меньше шрифт
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.MONOSPACE
             setPadding(0, 0, 0, 15)
+            setShadowLayer(10f, 0f, 0f, Color.parseColor("#40000000"))
         }
         
         val divider = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(100, 2).apply {
+            layoutParams = LinearLayout.LayoutParams(100, 2).apply { // Короткий разделитель
+                gravity = Gravity.CENTER
                 setMargins(0, 0, 0, 15)
-                gravity = Gravity.CENTER_HORIZONTAL
             }
-            setBackgroundColor(Color.parseColor("#10FFFFFF"))
+            setBackgroundColor(Color.parseColor("#20FFFFFF"))
         }
 
         trafficLabel = TextView(this).apply {
-            text = "ДАННЫЕ"
-            textSize = 9f
-            setTextColor(Color.parseColor("#60FFFFFF"))
+            text = "ТРАФИК"
+            textSize = 10f
+            setTextColor(Color.parseColor("#80FFFFFF"))
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
+            setPadding(0,0,0,5)
         }
 
         trafficValue = TextView(this).apply {
-            text = "0 B"
-            textSize = 14f
-            setTextColor(Color.parseColor("#D0D0D0"))
+            text = "↓ 0 MB   ↑ 0 MB"
+            textSize = 15f
+            setTextColor(Color.parseColor("#E0E0E0"))
             gravity = Gravity.CENTER
-            setPadding(0, 2, 0, 0)
         }
 
         statsContainer.addView(timerLabel)
@@ -242,8 +257,8 @@ class MainActivity : Activity() {
         statsContainer.addView(trafficValue)
 
         proxyAddress = TextView(this).apply {
-            textSize = 11f
-            setTextColor(Color.parseColor("#20FFFFFF"))
+            textSize = 12f
+            setTextColor(Color.parseColor("#50FFFFFF"))
             gravity = Gravity.CENTER
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             params.topMargin = 40
@@ -272,34 +287,43 @@ class MainActivity : Activity() {
 
         powerButton.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            powerButton.isClickable = false
+            powerButton.isClickable = false // Блокируем двойной клик
             
             val (status, _) = appStatus
-            if (status == AppStatus.Halted) start() else stop()
+            if (status == AppStatus.Halted) {
+                start() 
+            } else {
+                stop()
+            }
             
-            powerButton.postDelayed({ powerButton.isClickable = true }, 600)
+            powerButton.postDelayed({ powerButton.isClickable = true }, 800)
         }
 
+        // Проверка уведомлений для Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
         }
 
-        cleanUpInvalidState()
+        // Инициализация при холодном старте
+        if (appStatus.first == AppStatus.Running) {
+            restoreSessionData()
+        } else {
+            resetStatsUI()
+        }
+
         ShortcutUtils.update(this)
     }
 
     override fun onResume() {
         super.onResume()
-        
-        // Исправление бага: проверяем валидность сессии при входе
         if (appStatus.first == AppStatus.Running) {
-            validateAndRestoreSession()
+            restoreSessionData() // Важно: восстанавливаем данные при возврате
+            updateUIState()
         } else {
-            resetStatsUI()
+            resetStatsUI() // Если сервис умер пока нас не было
+            updateUIState()
         }
-        
-        updateUIState()
         
         handler.removeCallbacks(updateRunnable)
         handler.post(updateRunnable)
@@ -317,28 +341,22 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
+            // Пользователь дал добро на VPN
             ServiceManager.start(this, Mode.VPN)
-            startNewSession()
-        }
-    }
-
-    private fun cleanUpInvalidState() {
-        if (appStatus.first != AppStatus.Running) {
-             getPreferences().edit()
-                .remove("session_start_ts")
-                .remove("session_rx_start")
-                .remove("session_tx_start")
-                .apply()
+            // Сразу инициализируем сессию, чтобы не было скачка
+            initSessionData()
         }
     }
 
     private fun start() {
         if (appStatus.first == AppStatus.Running) return
         
-        // Важно: Сначала сохраняем нули, чтобы UI не прыгнул
-        startNewSession()
-
         val prefs = getPreferences()
+        
+        // Сразу готовим данные сессии, но сохраним их точно при успешном старте сервиса
+        // Однако для мгновенного отклика интерфейса сделаем pre-init
+        initSessionData()
+
         when (prefs.mode()) {
             Mode.VPN -> {
                 val intentPrepare = VpnService.prepare(this)
@@ -352,85 +370,94 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startNewSession() {
-        // Захватываем текущие показания как "нулевую точку"
+    // Полный сброс статистики при остановке
+    private fun stop() {
+        ServiceManager.stop(this)
+        clearSessionData()
+        resetStatsUI()
+    }
+
+    // Запоминаем момент старта и текущий трафик
+    private fun initSessionData() {
         startTimestamp = SystemClock.elapsedRealtime()
         startRx = TrafficStats.getUidRxBytes(Process.myUid())
         startTx = TrafficStats.getUidTxBytes(Process.myUid())
 
-        // Защита от багов системы
-        if (startRx == TrafficStats.UNSUPPORTED.toLong()) startRx = 0
-        if (startTx == TrafficStats.UNSUPPORTED.toLong()) startTx = 0
+        // Защита от возврата -1 (UNSUPPORTED)
+        if (startRx < 0) startRx = 0
+        if (startTx < 0) startTx = 0
         
         getPreferences().edit()
-            .putLong("session_start_ts", startTimestamp)
-            .putLong("session_rx_start", startRx)
-            .putLong("session_tx_start", startTx)
+            .putLong(PREF_SESSION_START, startTimestamp)
+            .putLong(PREF_SESSION_RX, startRx)
+            .putLong(PREF_SESSION_TX, startTx)
             .apply()
-            
-        // Мгновенный сброс UI
-        updateStats()
     }
 
-    private fun stop() {
-        ServiceManager.stop(this)
-        cleanUpInvalidState()
-        resetStatsUI()
-    }
-
-    private fun validateAndRestoreSession() {
+    // Восстанавливаем данные (если приложение выгружалось из памяти)
+    private fun restoreSessionData() {
         val prefs = getPreferences()
         val now = SystemClock.elapsedRealtime()
         
-        if (prefs.contains("session_start_ts")) {
-            val savedTs = prefs.getLong("session_start_ts", 0)
+        if (prefs.contains(PREF_SESSION_START)) {
+            startTimestamp = prefs.getLong(PREF_SESSION_START, now)
+            startRx = prefs.getLong(PREF_SESSION_RX, 0)
+            startTx = prefs.getLong(PREF_SESSION_TX, 0)
             
-            // Защита от бага "60 дней": если сохраненное время неадекватно (0) или из будущего
-            if (savedTs <= 0 || savedTs > now) {
-                startNewSession() // Перезапускаем сессию тихо
-            } else {
-                startTimestamp = savedTs
-                startRx = prefs.getLong("session_rx_start", 0)
-                startTx = prefs.getLong("session_tx_start", 0)
+            // Защита от бага "60 дней": если сохраненное время старта больше текущего uptime 
+            // или разница неадекватная (например, телефон перезагрузился), сбрасываем
+            if (startTimestamp > now || (now - startTimestamp) > 31536000000L) { // 1 год
+                 initSessionData()
             }
         } else {
-            // Если статус Running, но данных нет - создаем новые
-            startNewSession()
+            // Если сервис работает, а данных нет (странный сбой) -> считаем старт сейчас
+            initSessionData()
         }
     }
 
-    private fun updateStats() {
-        // Если метка времени 0 (баг), не считаем
-        if (startTimestamp == 0L) {
-            timerValue.text = "00:00:00"
-            return
-        }
+    private fun clearSessionData() {
+        getPreferences().edit()
+            .remove(PREF_SESSION_START)
+            .remove(PREF_SESSION_RX)
+            .remove(PREF_SESSION_TX)
+            .apply()
+    }
 
+    private fun updateStats() {
+        // --- Логика Времени ---
         val now = SystemClock.elapsedRealtime()
-        val duration = now - startTimestamp
+        var duration = now - startTimestamp
         
-        // Финальная защита от отрицательного времени
-        val safeDuration = if (duration < 0) 0 else duration
+        // Защита от отрицательного времени
+        if (duration < 0) { 
+            duration = 0 
+            // Если ушли в минус, значит что-то не так с таймером, реинициализируем
+            startTimestamp = now 
+        }
         
-        val seconds = (safeDuration / 1000) % 60
-        val minutes = (safeDuration / (1000 * 60)) % 60
-        val hours = (safeDuration / (1000 * 60 * 60))
+        val seconds = (duration / 1000) % 60
+        val minutes = (duration / (1000 * 60)) % 60
+        val hours = (duration / (1000 * 60 * 60))
+        
         timerValue.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
+        // --- Логика Трафика ---
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
         
+        var rx = 0L
+        var tx = 0L
+
         if (currentRx != TrafficStats.UNSUPPORTED.toLong() && currentTx != TrafficStats.UNSUPPORTED.toLong()) {
-            // Считаем дельту
-            var rx = currentRx - startRx
-            var tx = currentTx - startTx
+            // Если текущий счетчик меньше стартового (перезагрузка системы/счетчика), считаем от 0
+            if (currentRx < startRx) startRx = 0
+            if (currentTx < startTx) startTx = 0
             
-            // Защита от отрицательных значений (если система сбросила счетчики)
-            if (rx < 0) rx = 0
-            if (tx < 0) tx = 0
-            
-            trafficValue.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
+            rx = max(0L, currentRx - startRx)
+            tx = max(0L, currentTx - startTx)
         }
+        
+        trafficValue.text = "↓ ${formatBytes(rx)}   ↑ ${formatBytes(tx)}"
     }
     
     private fun resetStatsUI() {
@@ -445,22 +472,26 @@ class MainActivity : Activity() {
         if (bytes <= 0) return "0 B"
         val units = arrayOf("B", "KB", "MB", "GB", "TB")
         val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+        if (digitGroups < 0) return "0 B"
         return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
     }
 
     private fun createButtonBackground(isRunning: Boolean): Drawable {
-        val strokeColor = if (isRunning) Color.parseColor("#402ECC71") else Color.parseColor("#20FFFFFF")
+        val color = if (isRunning) Color.parseColor("#2ECC71") else Color.parseColor("#30FFFFFF")
+        
+        // Более сложное свечение для кнопки
+        val glowColor = if (isRunning) Color.parseColor("#402ECC71") else Color.TRANSPARENT
         
         val normal = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.TRANSPARENT)
-            setStroke(if (isRunning) 6 else 4, strokeColor)
+            setColor(glowColor)
+            setStroke(if (isRunning) 8 else 4, color) // Чуть толще обводка
         }
         
         val pressed = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (isRunning) Color.parseColor("#202ECC71") else Color.parseColor("#10FFFFFF"))
-            setStroke(if (isRunning) 6 else 4, strokeColor)
+            setColor(if (isRunning) Color.parseColor("#602ECC71") else Color.parseColor("#20FFFFFF"))
+            setStroke(if (isRunning) 8 else 4, color)
         }
         
         return StateListDrawable().apply {
@@ -479,18 +510,21 @@ class MainActivity : Activity() {
 
         if (status == AppStatus.Running) {
             statusText.text = "АКТИВНО"
-            statusText.setTextColor(Color.parseColor("#40E0D0")) // Бирюзовый
+            statusText.setTextColor(Color.parseColor("#2ECC71"))
             
             val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
-            gradient.setDither(true)
+            gradient.setDither(true) // Плавный градиент
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(true)
             
+            // При возвращении в активное состояние проверяем, не сбился ли таймер
+            if (startTimestamp == 0L) restoreSessionData()
+
         } else {
-            statusText.text = "ГОТОВО"
-            statusText.setTextColor(Color.parseColor("#808080"))
+            statusText.text = "ГОТОВ К РАБОТЕ"
+            statusText.setTextColor(Color.parseColor("#80FFFFFF"))
             
             val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
