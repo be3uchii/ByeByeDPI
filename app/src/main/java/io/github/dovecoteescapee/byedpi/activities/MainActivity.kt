@@ -43,27 +43,28 @@ import kotlin.math.min
 
 class MainActivity : Activity() {
 
-    private lateinit var mainContainer: FrameLayout
-    private lateinit var statusText: TextView
-    private lateinit var powerButton: PowerButtonView
-    private lateinit var timerValue: TextView
-    private lateinit var trafficValue: TextView
-    private lateinit var proxyAddress: TextView
-    private lateinit var trafficGraphView: TrafficGraphView
-    private lateinit var themeToggleButton: ImageButton
+    private lateinit var mMainContainer: FrameLayout
+    private lateinit var mStatusText: TextView
+    private lateinit var mPowerButton: PowerButtonView
+    private lateinit var mTimerValue: TextView
+    private lateinit var mTrafficValue: TextView
+    private lateinit var mProxyAddress: TextView
+    private lateinit var mTrafficGraphView: TrafficGraphView
+    private lateinit var mThemeToggleButton: ImageButton
 
-    private var isTvMode = false
-    private val handler = Handler(Looper.getMainLooper())
+    private var mIsTvMode = false
+    private val mHandler = Handler(Looper.getMainLooper())
 
-    private var startTimestamp: Long = 0
-    private var lastTimestamp: Long = 0
-    private var startRx: Long = 0
-    private var startTx: Long = 0
-    private var lastRx: Long = 0
-    private var lastTx: Long = 0
+    // Renamed variables to avoid conflicts with imports
+    private var mSessionStartTimestamp: Long = 0
+    private var mLastTimestamp: Long = 0
+    private var mStartRx: Long = 0
+    private var mStartTx: Long = 0
+    private var mLastRx: Long = 0
+    private var mLastTx: Long = 0
 
-    private var currentGradientColors: IntArray? = null
-    private var isDarkTheme = true
+    private var mCurrentGradientColors: IntArray? = null
+    private var mIsDarkTheme = true
 
     interface ThemeColors {
         val BG_OFF: IntArray
@@ -141,7 +142,7 @@ class MainActivity : Activity() {
         override fun run() {
             if (appStatus.first == AppStatus.Running) {
                 updateStats()
-                handler.postDelayed(this, 1000)
+                mHandler.postDelayed(this, 1000)
             }
         }
     }
@@ -149,10 +150,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        isDarkTheme = getPreferences().getBoolean(PREF_UI_THEME, true)
+        mIsDarkTheme = getPreferences().getBoolean(PREF_UI_THEME, true)
 
         val uiModeManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
-        isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        mIsTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
                 !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
         window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
@@ -169,7 +170,7 @@ class MainActivity : Activity() {
         setupUI()
         applyTheme(false)
 
-        mainContainer.setOnApplyWindowInsetsListener { v, insets ->
+        mMainContainer.setOnApplyWindowInsetsListener { v, insets ->
             v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
             insets
         }
@@ -186,9 +187,9 @@ class MainActivity : Activity() {
             registerReceiver(receiver, intentFilter)
         }
 
-        powerButton.setOnClickListener {
+        mPowerButton.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            powerButton.isClickable = false
+            mPowerButton.isClickable = false
 
             val (status, _) = appStatus
             if (status == AppStatus.Halted) {
@@ -197,12 +198,12 @@ class MainActivity : Activity() {
                 stopVpn()
             }
 
-            powerButton.postDelayed({ powerButton.isClickable = true }, 1000)
+            mPowerButton.postDelayed({ mPowerButton.isClickable = true }, 1000)
         }
 
-        themeToggleButton.setOnClickListener {
-            isDarkTheme = !isDarkTheme
-            getPreferences().edit().putBoolean(PREF_UI_THEME, isDarkTheme).apply()
+        mThemeToggleButton.setOnClickListener {
+            mIsDarkTheme = !mIsDarkTheme
+            getPreferences().edit().putBoolean(PREF_UI_THEME, mIsDarkTheme).apply()
             applyTheme(true)
         }
 
@@ -221,28 +222,28 @@ class MainActivity : Activity() {
     }
 
     private fun setupUI() {
-        mainContainer = FrameLayout(this)
+        mMainContainer = FrameLayout(this)
 
         val contentLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
 
-        val topMargin = if (isTvMode) 40 else 80
-        statusText = TextView(this).apply {
-            textSize = if (isTvMode) 16f else 18f
+        val topMargin = if (mIsTvMode) 40 else 80
+        mStatusText = TextView(this).apply {
+            textSize = if (mIsTvMode) 16f else 18f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
             setPadding(0, topMargin, 0, 0)
             letterSpacing = 0.15f
         }
 
-        val btnSize = if (isTvMode) 220 else 360
-        val btnMargin = if (isTvMode) 30 else 80
+        val btnSize = if (mIsTvMode) 220 else 360
+        val btnMargin = if (mIsTvMode) 30 else 80
 
-        powerButton = PowerButtonView(this).apply {
+        mPowerButton = PowerButtonView(this).apply {
             isFocusable = true
-            isFocusableInTouchMode = isTvMode
+            isFocusableInTouchMode = mIsTvMode
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
                 gravity = Gravity.CENTER
                 topMargin = btnMargin
@@ -250,7 +251,7 @@ class MainActivity : Activity() {
             }
         }
 
-        val statsWidth = if (isTvMode) 400 else 600
+        val statsWidth = if (mIsTvMode) 400 else 600
         val statsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -258,7 +259,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(statsWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        timerValue = TextView(this).apply {
+        mTimerValue = TextView(this).apply {
             textSize = 34f
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             gravity = Gravity.CENTER
@@ -271,7 +272,7 @@ class MainActivity : Activity() {
             letterSpacing = 0.2f
         }
 
-        trafficValue = TextView(this).apply {
+        mTrafficValue = TextView(this).apply {
             textSize = 18f
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             gravity = Gravity.CENTER
@@ -298,7 +299,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            addView(timerValue)
+            addView(mTimerValue)
             addView(timerLabel)
         }
 
@@ -306,7 +307,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            addView(trafficValue)
+            addView(mTrafficValue)
             addView(trafficLabel)
         }
 
@@ -314,14 +315,14 @@ class MainActivity : Activity() {
         topStatsRow.addView(trafficLayout)
         statsContainer.addView(topStatsRow)
 
-        trafficGraphView = TrafficGraphView(this).apply {
+        mTrafficGraphView = TrafficGraphView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, if (isTvMode) 80 else 120
+                LinearLayout.LayoutParams.MATCH_PARENT, if (mIsTvMode) 80 else 120
             ).apply { topMargin = 40 }
         }
-        statsContainer.addView(trafficGraphView)
+        statsContainer.addView(mTrafficGraphView)
 
-        proxyAddress = TextView(this).apply {
+        mProxyAddress = TextView(this).apply {
             textSize = 12f
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
@@ -332,10 +333,10 @@ class MainActivity : Activity() {
 
         val headerLayout = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-            addView(statusText)
+            addView(mStatusText)
         }
 
-        themeToggleButton = ImageButton(this).apply {
+        mThemeToggleButton = ImageButton(this).apply {
             val padding = 32
             setPadding(padding, padding, padding, padding)
             background = null
@@ -348,62 +349,62 @@ class MainActivity : Activity() {
                 rightMargin = 16
             }
         }
-        headerLayout.addView(themeToggleButton)
+        headerLayout.addView(mThemeToggleButton)
 
         contentLayout.addView(headerLayout)
-        contentLayout.addView(powerButton)
+        contentLayout.addView(mPowerButton)
         contentLayout.addView(statsContainer)
-        contentLayout.addView(proxyAddress)
-        mainContainer.addView(contentLayout)
-        setContentView(mainContainer)
+        contentLayout.addView(mProxyAddress)
+        mMainContainer.addView(contentLayout)
+        setContentView(mMainContainer)
     }
 
     private fun applyTheme(animated: Boolean) {
-        val colors: ThemeColors = if (isDarkTheme) DarkTheme else LightTheme
+        val colors: ThemeColors = if (mIsDarkTheme) DarkTheme else LightTheme
         val bgColors = if (appStatus.first == AppStatus.Running) colors.BG_ON else colors.BG_OFF
-        val statusBarIsLight = !isDarkTheme
-        val navBarIsLight = !isDarkTheme
+        val statusBarIsLight = !mIsDarkTheme
+        val navBarIsLight = !mIsDarkTheme
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             var flags = window.decorView.systemUiVisibility
             flags = if (statusBarIsLight) flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
             flags = if (navBarIsLight) flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
             window.decorView.systemUiVisibility = flags
-        } else if (!isDarkTheme) {
+        } else if (!mIsDarkTheme) {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         }
 
-        if (animated && currentGradientColors != null) {
-            animateBackground(currentGradientColors!!, bgColors)
+        if (animated && mCurrentGradientColors != null) {
+            animateBackground(mCurrentGradientColors!!, bgColors)
         } else {
             val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, bgColors).apply {
                 gradientType = GradientDrawable.LINEAR_GRADIENT
                 setDither(true)
             }
-            mainContainer.background = gradient
-            currentGradientColors = bgColors
+            mMainContainer.background = gradient
+            mCurrentGradientColors = bgColors
         }
 
-        statusText.setTextColor(if (appStatus.first == AppStatus.Running) colors.STATUS_ON else colors.STATUS_OFF)
-        timerValue.setTextColor(colors.TEXT_PRIMARY)
-        trafficValue.setTextColor(colors.TEXT_PRIMARY)
-        (timerValue.parent as View).findViewById<TextView>(timerValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
-        (trafficValue.parent as View).findViewById<TextView>(trafficValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
-        proxyAddress.setTextColor(colors.TEXT_TERTIARY)
+        mStatusText.setTextColor(if (appStatus.first == AppStatus.Running) colors.STATUS_ON else colors.STATUS_OFF)
+        mTimerValue.setTextColor(colors.TEXT_PRIMARY)
+        mTrafficValue.setTextColor(colors.TEXT_PRIMARY)
+        (mTimerValue.parent as View).findViewById<TextView>(mTimerValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
+        (mTrafficValue.parent as View).findViewById<TextView>(mTrafficValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
+        mProxyAddress.setTextColor(colors.TEXT_TERTIARY)
 
-        (powerButton.parent.parent as LinearLayout).getChildAt(2).background = GradientDrawable().apply {
+        (mPowerButton.parent.parent as LinearLayout).getChildAt(2).background = GradientDrawable().apply {
             setColor(colors.STATS_BG)
             cornerRadius = 50f
         }
 
-        powerButton.setColors(
+        mPowerButton.setColors(
             if (appStatus.first == AppStatus.Running) colors.POWER_BUTTON_ON_BG else colors.POWER_BUTTON_OFF_BG,
             colors.POWER_BUTTON_ICON,
             animated
         )
-        trafficGraphView.setColors(colors.GRAPH_GRID, colors.GRAPH_DOWN, colors.GRAPH_UP)
-        themeToggleButton.setImageDrawable(ThemeIconDrawable(colors.TEXT_SECONDARY, isDarkTheme))
+        mTrafficGraphView.setColors(colors.GRAPH_GRID, colors.GRAPH_DOWN, colors.GRAPH_UP)
+        mThemeToggleButton.setImageDrawable(ThemeIconDrawable(colors.TEXT_SECONDARY, mIsDarkTheme))
     }
 
     private fun animateBackground(from: IntArray, to: IntArray) {
@@ -419,19 +420,19 @@ class MainActivity : Activity() {
                     gradientType = GradientDrawable.LINEAR_GRADIENT
                     setDither(true)
                 }
-                mainContainer.background = gradient
+                mMainContainer.background = gradient
             }
             start()
         }
-        currentGradientColors = to
+        mCurrentGradientColors = to
     }
 
     override fun onResume() {
         super.onResume()
         if (appStatus.first == AppStatus.Running) {
             restoreSessionData()
-            handler.removeCallbacks(updateRunnable)
-            handler.post(updateRunnable)
+            mHandler.removeCallbacks(updateRunnable)
+            mHandler.post(updateRunnable)
         } else {
             resetStatsUI()
         }
@@ -440,7 +441,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        handler.removeCallbacks(updateRunnable)
+        mHandler.removeCallbacks(updateRunnable)
     }
 
     override fun onDestroy() {
@@ -471,39 +472,39 @@ class MainActivity : Activity() {
             }
             Mode.Proxy -> ServiceManager.start(this, Mode.Proxy)
         }
-        handler.removeCallbacks(updateRunnable)
-        handler.post(updateRunnable)
+        mHandler.removeCallbacks(updateRunnable)
+        mHandler.post(updateRunnable)
     }
 
     private fun stopVpn() {
         ServiceManager.stop(this)
         clearSessionData()
         resetStatsUI()
-        handler.removeCallbacks(updateRunnable)
+        mHandler.removeCallbacks(updateRunnable)
     }
 
     private fun initSessionData() {
         val now = SystemClock.elapsedRealtime()
         val uid = Process.myUid()
-        startTimestamp = now
-        lastTimestamp = now
-        startRx = TrafficStats.getUidRxBytes(uid)
-        startTx = TrafficStats.getUidTxBytes(uid)
-        lastRx = startRx
-        lastTx = startTx
+        mSessionStartTimestamp = now
+        mLastTimestamp = now
+        mStartRx = TrafficStats.getUidRxBytes(uid)
+        mStartTx = TrafficStats.getUidTxBytes(uid)
+        mLastRx = mStartRx
+        mLastTx = mStartTx
 
-        if (startRx < 0) startRx = 0
-        if (startTx < 0) startTx = 0
+        if (mStartRx < 0) mStartRx = 0
+        if (mStartTx < 0) mStartTx = 0
 
         getPreferences().edit()
-            .putLong(PREF_SESSION_START, startTimestamp)
-            .putLong(PREF_SESSION_RX, startRx)
-            .putLong(PREF_SESSION_TX, startTx)
+            .putLong(PREF_SESSION_START, mSessionStartTimestamp)
+            .putLong(PREF_SESSION_RX, mStartRx)
+            .putLong(PREF_SESSION_TX, mStartTx)
             .apply()
 
-        timerValue.text = "00:00:00"
-        trafficValue.text = "↓ 0 B   ↑ 0 B"
-        trafficGraphView.clear()
+        mTimerValue.text = "00:00:00"
+        mTrafficValue.text = "↓ 0 B   ↑ 0 B"
+        mTrafficGraphView.clear()
     }
 
     private fun restoreSessionData() {
@@ -512,19 +513,19 @@ class MainActivity : Activity() {
         val uid = Process.myUid()
 
         if (prefs.contains(PREF_SESSION_START)) {
-            startTimestamp = prefs.getLong(PREF_SESSION_START, now)
-            startRx = prefs.getLong(PREF_SESSION_RX, 0)
-            startTx = prefs.getLong(PREF_SESSION_TX, 0)
+            mSessionStartTimestamp = prefs.getLong(PREF_SESSION_START, now)
+            mStartRx = prefs.getLong(PREF_SESSION_RX, 0)
+            mStartTx = prefs.getLong(PREF_SESSION_TX, 0)
 
-            if (startTimestamp > now || (now - startTimestamp) > 31536000000L) {
+            if (mSessionStartTimestamp > now || (now - mSessionStartTimestamp) > 31536000000L) {
                 initSessionData()
             }
         } else {
             initSessionData()
         }
-        lastTimestamp = now
-        lastRx = TrafficStats.getUidRxBytes(uid)
-        lastTx = TrafficStats.getUidTxBytes(uid)
+        mLastTimestamp = now
+        mLastRx = TrafficStats.getUidRxBytes(uid)
+        mLastTx = TrafficStats.getUidTxBytes(uid)
     }
 
     private fun clearSessionData() {
@@ -538,18 +539,18 @@ class MainActivity : Activity() {
     private fun updateStats() {
         val now = SystemClock.elapsedRealtime()
 
-        if (startTimestamp == 0L || startTimestamp > now) {
-            timerValue.text = "00:00:00"
+        if (mSessionStartTimestamp == 0L || mSessionStartTimestamp > now) {
+            mTimerValue.text = "00:00:00"
             return
         }
 
-        var duration = now - startTimestamp
+        var duration = now - mSessionStartTimestamp
         if (duration < 0) duration = 0
 
         val seconds = (duration / 1000) % 60
         val minutes = (duration / (1000 * 60)) % 60
         val hours = (duration / (1000 * 60 * 60))
-        timerValue.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+        mTimerValue.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
         val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
         val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
@@ -560,33 +561,33 @@ class MainActivity : Activity() {
         var upSpeed = 0f
 
         if (currentRx != TrafficStats.UNSUPPORTED.toLong() && currentTx != TrafficStats.UNSUPPORTED.toLong()) {
-            if (currentRx < startRx) startRx = currentRx
-            if (currentTx < startTx) startTx = currentTx
+            if (currentRx < mStartRx) mStartRx = currentRx
+            if (currentTx < mStartTx) mStartTx = currentTx
 
-            totalRx = max(0L, currentRx - startRx)
-            totalTx = max(0L, currentTx - startTx)
+            totalRx = max(0L, currentRx - mStartRx)
+            totalTx = max(0L, currentTx - mStartTx)
 
-            val timeDelta = (now - lastTimestamp) / 1000.0f
+            val timeDelta = (now - mLastTimestamp) / 1000.0f
             if (timeDelta > 0) {
-                downSpeed = max(0f, (currentRx - lastRx).toFloat()) / timeDelta
-                upSpeed = max(0f, (currentTx - lastTx).toFloat()) / timeDelta
+                downSpeed = max(0f, (currentRx - mLastRx).toFloat()) / timeDelta
+                upSpeed = max(0f, (currentTx - mLastTx).toFloat()) / timeDelta
             }
         }
 
-        trafficValue.text = "↓ ${formatBytes(totalRx)}   ↑ ${formatBytes(totalTx)}"
-        trafficGraphView.addTraffics(downSpeed, upSpeed)
-        lastTimestamp = now
-        lastRx = currentRx
-        lastTx = currentTx
+        mTrafficValue.text = "↓ ${formatBytes(totalRx)}   ↑ ${formatBytes(totalTx)}"
+        mTrafficGraphView.addTraffics(downSpeed, upSpeed)
+        mLastTimestamp = now
+        mLastRx = currentRx
+        mLastTx = currentTx
     }
 
     private fun resetStatsUI() {
-        startTimestamp = 0
-        startRx = 0
-        startTx = 0
-        timerValue.text = "00:00:00"
-        trafficValue.text = "↓ 0 B   ↑ 0 B"
-        trafficGraphView.clear()
+        mSessionStartTimestamp = 0
+        mStartRx = 0
+        mStartTx = 0
+        mTimerValue.text = "00:00:00"
+        mTrafficValue.text = "↓ 0 B   ↑ 0 B"
+        mTrafficGraphView.clear()
     }
 
     private fun formatBytes(bytes: Long): String {
@@ -608,20 +609,20 @@ class MainActivity : Activity() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
-        proxyAddress.text = "$ip:$port"
+        mProxyAddress.text = "$ip:$port"
 
         val isRunning = status == AppStatus.Running
-        powerButton.setActive(isRunning, animated)
+        mPowerButton.setActive(isRunning, animated)
 
         if (isRunning) {
-            statusText.text = "АКТИВНО"
-            if (startTimestamp == 0L) restoreSessionData()
-            handler.removeCallbacks(updateRunnable)
-            handler.post(updateRunnable)
+            mStatusText.text = "АКТИВНО"
+            if (mSessionStartTimestamp == 0L) restoreSessionData()
+            mHandler.removeCallbacks(updateRunnable)
+            mHandler.post(updateRunnable)
         } else {
-            statusText.text = "НЕ ПОДКЛЮЧЕНО"
+            mStatusText.text = "НЕ ПОДКЛЮЧЕНО"
             resetStatsUI()
-            handler.removeCallbacks(updateRunnable)
+            mHandler.removeCallbacks(updateRunnable)
         }
         applyTheme(animated)
     }
