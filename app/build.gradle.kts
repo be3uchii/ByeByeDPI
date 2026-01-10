@@ -23,8 +23,10 @@ android {
         ndk {
             abiFilters.addAll(abis)
         }
-
-        resourceConfigurations.addAll(listOf("ru", "en", "xhdpi", "xxhdpi", "xxxhdpi"))
+        
+        // Убрали жесткий фильтр по dpi, оставили только языки.
+        // Это безопаснее, R8 все равно удалит неиспользуемое.
+        resourceConfigurations.addAll(listOf("en", "ru"))
     }
 
     buildFeatures {
@@ -37,6 +39,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Без подписи (GitHub сам соберет unsigned, если ключа нет)
         }
         debug {
             isMinifyEnabled = true
