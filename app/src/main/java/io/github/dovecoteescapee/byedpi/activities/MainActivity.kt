@@ -43,106 +43,105 @@ import kotlin.math.min
 
 class MainActivity : Activity() {
 
-    private lateinit var mMainContainer: FrameLayout
-    private lateinit var mStatusText: TextView
-    private lateinit var mPowerButton: PowerButtonView
-    private lateinit var mTimerValue: TextView
-    private lateinit var mTrafficValue: TextView
-    private lateinit var mProxyAddress: TextView
-    private lateinit var mTrafficGraphView: TrafficGraphView
-    private lateinit var mThemeToggleButton: ImageButton
+    // UI Components
+    private lateinit var uiContainer: FrameLayout
+    private lateinit var uiStatusText: TextView
+    private lateinit var uiPowerButton: PowerButtonView
+    private lateinit var uiTimerValue: TextView
+    private lateinit var uiTrafficValue: TextView
+    private lateinit var uiProxyAddress: TextView
+    private lateinit var uiTrafficGraph: TrafficGraphView
+    private lateinit var uiThemeToggle: ImageButton
 
-    private var mIsTvMode = false
-    private val mHandler = Handler(Looper.getMainLooper())
+    // State
+    private var isTvInterface = false
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Renamed variables to avoid conflicts with imports
-    private var mSessionStartTimestamp: Long = 0
-    private var mLastTimestamp: Long = 0
-    private var mStartRx: Long = 0
-    private var mStartTx: Long = 0
-    private var mLastRx: Long = 0
-    private var mLastTx: Long = 0
+    // Session Variables (prefixed to avoid conflicts)
+    private var sessionStartTime: Long = 0
+    private var sessionLastTime: Long = 0
+    private var sessionStartRx: Long = 0
+    private var sessionStartTx: Long = 0
+    private var sessionLastRx: Long = 0
+    private var sessionLastTx: Long = 0
 
-    private var mCurrentGradientColors: IntArray? = null
-    private var mIsDarkTheme = true
+    private var currentThemeGradient: IntArray? = null
+    private var isDarkThemeActive = true
 
-    interface ThemeColors {
+    // Theme Interface
+    interface AppTheme {
         val BG_OFF: IntArray
         val BG_ON: IntArray
         val STATUS_ON: Int
         val STATUS_OFF: Int
-        val TEXT_PRIMARY: Int
-        val TEXT_SECONDARY: Int
-        val TEXT_TERTIARY: Int
-        val POWER_BUTTON_ON_BG: Int
-        val POWER_BUTTON_OFF_BG: Int
-        val POWER_BUTTON_ICON: Int
-        val STATS_BG: Int
-        val DIVIDER: Int
+        val TEXT_MAIN: Int
+        val TEXT_SUB: Int
+        val TEXT_DIM: Int
+        val BTN_ON_BG: Int
+        val BTN_OFF_BG: Int
+        val BTN_ICON: Int
+        val PANEL_BG: Int
         val GRAPH_GRID: Int
-        val GRAPH_DOWN: Int
-        val GRAPH_UP: Int
+        val GRAPH_DL: Int
+        val GRAPH_UL: Int
     }
 
-    private object DarkTheme : ThemeColors {
+    private object Dark : AppTheme {
         override val BG_OFF = intArrayOf(Color.parseColor("#FF21212B"), Color.parseColor("#FF14141C"))
         override val BG_ON = intArrayOf(Color.parseColor("#FF002B22"), Color.parseColor("#FF001C16"))
         override val STATUS_ON = Color.parseColor("#FF30D9A9")
         override val STATUS_OFF = Color.parseColor("#99FFFFFF")
-        override val TEXT_PRIMARY = Color.WHITE
-        override val TEXT_SECONDARY = Color.parseColor("#80FFFFFF")
-        override val TEXT_TERTIARY = Color.parseColor("#50FFFFFF")
-        override val POWER_BUTTON_ON_BG = Color.parseColor("#FF00B894")
-        override val POWER_BUTTON_OFF_BG = Color.parseColor("#20FFFFFF")
-        override val POWER_BUTTON_ICON = Color.WHITE
-        override val STATS_BG = Color.parseColor("#15FFFFFF")
-        override val DIVIDER = Color.parseColor("#20FFFFFF")
+        override val TEXT_MAIN = Color.WHITE
+        override val TEXT_SUB = Color.parseColor("#80FFFFFF")
+        override val TEXT_DIM = Color.parseColor("#50FFFFFF")
+        override val BTN_ON_BG = Color.parseColor("#FF00B894")
+        override val BTN_OFF_BG = Color.parseColor("#20FFFFFF")
+        override val BTN_ICON = Color.WHITE
+        override val PANEL_BG = Color.parseColor("#15FFFFFF")
         override val GRAPH_GRID = Color.parseColor("#20FFFFFF")
-        override val GRAPH_DOWN = Color.parseColor("#FF30D9A9")
-        override val GRAPH_UP = Color.parseColor("#FF54A0FF")
+        override val GRAPH_DL = Color.parseColor("#FF30D9A9")
+        override val GRAPH_UL = Color.parseColor("#FF54A0FF")
     }
 
-    private object LightTheme : ThemeColors {
+    private object Light : AppTheme {
         override val BG_OFF = intArrayOf(Color.parseColor("#FFE8EAF6"), Color.parseColor("#FFD9DBE9"))
         override val BG_ON = intArrayOf(Color.parseColor("#FFD9F5E5"), Color.parseColor("#FFC8EAD5"))
         override val STATUS_ON = Color.parseColor("#FF1E8A63")
         override val STATUS_OFF = Color.parseColor("#8A000000")
-        override val TEXT_PRIMARY = Color.parseColor("#DE000000")
-        override val TEXT_SECONDARY = Color.parseColor("#8A000000")
-        override val TEXT_TERTIARY = Color.parseColor("#61000000")
-        override val POWER_BUTTON_ON_BG = Color.parseColor("#FF26A69A")
-        override val POWER_BUTTON_OFF_BG = Color.parseColor("#1A000000")
-        override val POWER_BUTTON_ICON = Color.WHITE
-        override val STATS_BG = Color.parseColor("#08000000")
-        override val DIVIDER = Color.parseColor("#1A000000")
+        override val TEXT_MAIN = Color.parseColor("#DE000000")
+        override val TEXT_SUB = Color.parseColor("#8A000000")
+        override val TEXT_DIM = Color.parseColor("#61000000")
+        override val BTN_ON_BG = Color.parseColor("#FF26A69A")
+        override val BTN_OFF_BG = Color.parseColor("#1A000000")
+        override val BTN_ICON = Color.WHITE
+        override val PANEL_BG = Color.parseColor("#08000000")
         override val GRAPH_GRID = Color.parseColor("#1A000000")
-        override val GRAPH_DOWN = Color.parseColor("#FF00796B")
-        override val GRAPH_UP = Color.parseColor("#FF4285F4")
+        override val GRAPH_DL = Color.parseColor("#FF00796B")
+        override val GRAPH_UL = Color.parseColor("#FF4285F4")
     }
 
     companion object {
-        private const val REQUEST_VPN = 1
-        private const val REQUEST_NOTIFICATIONS = 3
-
-        private const val PREF_SESSION_START = "session_start_ts"
-        private const val PREF_SESSION_RX = "session_rx_start"
-        private const val PREF_SESSION_TX = "session_tx_start"
-        private const val PREF_UI_THEME = "ui_theme_dark"
+        private const val REQ_VPN = 1
+        private const val REQ_NOTIF = 3
+        private const val KEY_SESS_START = "session_start_ts"
+        private const val KEY_SESS_RX = "session_rx_start"
+        private const val KEY_SESS_TX = "session_tx_start"
+        private const val KEY_THEME = "ui_theme_dark"
     }
 
-    private val receiver = object : BroadcastReceiver() {
+    private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action in listOf(STARTED_BROADCAST, STOPPED_BROADCAST, FAILED_BROADCAST)) {
-                updateUIState(true)
+                refreshUiState(true)
             }
         }
     }
 
-    private val updateRunnable = object : Runnable {
+    private val statsUpdater = object : Runnable {
         override fun run() {
             if (appStatus.first == AppStatus.Running) {
-                updateStats()
-                mHandler.postDelayed(this, 1000)
+                calculateStats()
+                mainHandler.postDelayed(this, 1000)
             }
         }
     }
@@ -150,10 +149,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        mIsDarkTheme = getPreferences().getBoolean(PREF_UI_THEME, true)
+        isDarkThemeActive = getPreferences().getBoolean(KEY_THEME, true)
 
-        val uiModeManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
-        mIsTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        val uiManager = getSystemService(UI_MODE_SERVICE) as UiModeManager
+        isTvInterface = uiManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
                 !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
         window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
@@ -167,673 +166,633 @@ class MainActivity : Activity() {
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
 
-        setupUI()
-        applyTheme(false)
+        buildLayout()
+        updateTheme(false)
 
-        mMainContainer.setOnApplyWindowInsetsListener { v, insets ->
+        uiContainer.setOnApplyWindowInsetsListener { v, insets ->
             v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
             insets
         }
 
-        val intentFilter = IntentFilter().apply {
+        val filter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
             addAction(STOPPED_BROADCAST)
             addAction(FAILED_BROADCAST)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, intentFilter, RECEIVER_EXPORTED)
+            registerReceiver(statusReceiver, filter, RECEIVER_EXPORTED)
         } else {
-            registerReceiver(receiver, intentFilter)
+            registerReceiver(statusReceiver, filter)
         }
 
-        mPowerButton.setOnClickListener {
+        uiPowerButton.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            mPowerButton.isClickable = false
+            uiPowerButton.isClickable = false
 
             val (status, _) = appStatus
             if (status == AppStatus.Halted) {
-                startVpn()
+                performStart()
             } else {
-                stopVpn()
+                performStop()
             }
 
-            mPowerButton.postDelayed({ mPowerButton.isClickable = true }, 1000)
+            uiPowerButton.postDelayed({ uiPowerButton.isClickable = true }, 1000)
         }
 
-        mThemeToggleButton.setOnClickListener {
-            mIsDarkTheme = !mIsDarkTheme
-            getPreferences().edit().putBoolean(PREF_UI_THEME, mIsDarkTheme).apply()
-            applyTheme(true)
+        uiThemeToggle.setOnClickListener {
+            isDarkThemeActive = !isDarkThemeActive
+            getPreferences().edit().putBoolean(KEY_THEME, isDarkThemeActive).apply()
+            updateTheme(true)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
         }
 
         if (appStatus.first == AppStatus.Running) {
-            restoreSessionData()
+            loadSession()
         } else {
-            resetStatsUI()
+            resetSessionUI()
         }
 
         ShortcutUtils.update(this)
     }
 
-    private fun setupUI() {
-        mMainContainer = FrameLayout(this)
+    private fun buildLayout() {
+        uiContainer = FrameLayout(this)
 
-        val contentLayout = LinearLayout(this).apply {
+        val mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
 
-        val topMargin = if (mIsTvMode) 40 else 80
-        mStatusText = TextView(this).apply {
-            textSize = if (mIsTvMode) 16f else 18f
+        val topPad = if (isTvInterface) 40 else 80
+        uiStatusText = TextView(this).apply {
+            textSize = if (isTvInterface) 16f else 18f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
-            setPadding(0, topMargin, 0, 0)
+            setPadding(0, topPad, 0, 0)
             letterSpacing = 0.15f
         }
 
-        val btnSize = if (mIsTvMode) 220 else 360
-        val btnMargin = if (mIsTvMode) 30 else 80
+        val btnDim = if (isTvInterface) 220 else 360
+        val btnMarg = if (isTvInterface) 30 else 80
 
-        mPowerButton = PowerButtonView(this).apply {
+        uiPowerButton = PowerButtonView(this).apply {
             isFocusable = true
-            isFocusableInTouchMode = mIsTvMode
-            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
+            isFocusableInTouchMode = isTvInterface
+            layoutParams = LinearLayout.LayoutParams(btnDim, btnDim).apply {
                 gravity = Gravity.CENTER
-                topMargin = btnMargin
-                bottomMargin = btnMargin
+                topMargin = btnMarg
+                bottomMargin = btnMarg
             }
         }
 
-        val statsWidth = if (mIsTvMode) 400 else 600
-        val statsContainer = LinearLayout(this).apply {
+        val statsW = if (isTvInterface) 400 else 600
+        val statsBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(60, 40, 60, 40)
-            layoutParams = LinearLayout.LayoutParams(statsWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(statsW, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        mTimerValue = TextView(this).apply {
+        uiTimerValue = TextView(this).apply {
             textSize = 34f
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 20)
         }
-        val timerLabel = TextView(this).apply {
+        val lblTimer = TextView(this).apply {
             text = "СЕССИЯ"
             textSize = 11f
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
         }
 
-        mTrafficValue = TextView(this).apply {
+        uiTrafficValue = TextView(this).apply {
             textSize = 18f
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 20)
         }
-        val trafficLabel = TextView(this).apply {
+        val lblTraffic = TextView(this).apply {
             text = "ТРАФИК"
             textSize = 11f
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
         }
 
-        val topStatsRow = LinearLayout(this).apply {
+        val rowStats = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             weightSum = 2f
         }
 
-        val timerLayout = LinearLayout(this).apply {
+        val colTimer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            addView(mTimerValue)
-            addView(timerLabel)
+            addView(uiTimerValue)
+            addView(lblTimer)
         }
 
-        val trafficLayout = LinearLayout(this).apply {
+        val colTraffic = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            addView(mTrafficValue)
-            addView(trafficLabel)
+            addView(uiTrafficValue)
+            addView(lblTraffic)
         }
 
-        topStatsRow.addView(timerLayout)
-        topStatsRow.addView(trafficLayout)
-        statsContainer.addView(topStatsRow)
+        rowStats.addView(colTimer)
+        rowStats.addView(colTraffic)
+        statsBox.addView(rowStats)
 
-        mTrafficGraphView = TrafficGraphView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, if (mIsTvMode) 80 else 120
-            ).apply { topMargin = 40 }
+        uiTrafficGraph = TrafficGraphView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, if (isTvInterface) 80 else 120).apply { topMargin = 40 }
         }
-        statsContainer.addView(mTrafficGraphView)
+        statsBox.addView(uiTrafficGraph)
 
-        mProxyAddress = TextView(this).apply {
+        uiProxyAddress = TextView(this).apply {
             textSize = 12f
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = 40 }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 40 }
         }
 
-        val headerLayout = FrameLayout(this).apply {
+        val headerFrame = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-            addView(mStatusText)
+            addView(uiStatusText)
         }
 
-        mThemeToggleButton = ImageButton(this).apply {
-            val padding = 32
-            setPadding(padding, padding, padding, padding)
+        uiThemeToggle = ImageButton(this).apply {
+            val p = 32
+            setPadding(p, p, p, p)
             background = null
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.TOP or Gravity.END
-                topMargin = topMargin - 20
+                topMargin = topPad - 20
                 rightMargin = 16
             }
         }
-        headerLayout.addView(mThemeToggleButton)
+        headerFrame.addView(uiThemeToggle)
 
-        contentLayout.addView(headerLayout)
-        contentLayout.addView(mPowerButton)
-        contentLayout.addView(statsContainer)
-        contentLayout.addView(mProxyAddress)
-        mMainContainer.addView(contentLayout)
-        setContentView(mMainContainer)
+        mainLayout.addView(headerFrame)
+        mainLayout.addView(uiPowerButton)
+        mainLayout.addView(statsBox)
+        mainLayout.addView(uiProxyAddress)
+        uiContainer.addView(mainLayout)
+        setContentView(uiContainer)
     }
 
-    private fun applyTheme(animated: Boolean) {
-        val colors: ThemeColors = if (mIsDarkTheme) DarkTheme else LightTheme
-        val bgColors = if (appStatus.first == AppStatus.Running) colors.BG_ON else colors.BG_OFF
-        val statusBarIsLight = !mIsDarkTheme
-        val navBarIsLight = !mIsDarkTheme
+    private fun updateTheme(anim: Boolean) {
+        val theme: AppTheme = if (isDarkThemeActive) Dark else Light
+        val bgColors = if (appStatus.first == AppStatus.Running) theme.BG_ON else theme.BG_OFF
+        val isLightMode = !isDarkThemeActive
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             var flags = window.decorView.systemUiVisibility
-            flags = if (statusBarIsLight) flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
-            flags = if (navBarIsLight) flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+            flags = if (isLightMode) flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+            flags = if (isLightMode) flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
             window.decorView.systemUiVisibility = flags
-        } else if (!mIsDarkTheme) {
+        } else if (isLightMode) {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         }
 
-        if (animated && mCurrentGradientColors != null) {
-            animateBackground(mCurrentGradientColors!!, bgColors)
+        if (anim && currentThemeGradient != null) {
+            runBgAnim(currentThemeGradient!!, bgColors)
         } else {
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, bgColors).apply {
+            val gd = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, bgColors).apply {
                 gradientType = GradientDrawable.LINEAR_GRADIENT
                 setDither(true)
             }
-            mMainContainer.background = gradient
-            mCurrentGradientColors = bgColors
+            uiContainer.background = gd
+            currentThemeGradient = bgColors
         }
 
-        mStatusText.setTextColor(if (appStatus.first == AppStatus.Running) colors.STATUS_ON else colors.STATUS_OFF)
-        mTimerValue.setTextColor(colors.TEXT_PRIMARY)
-        mTrafficValue.setTextColor(colors.TEXT_PRIMARY)
-        (mTimerValue.parent as View).findViewById<TextView>(mTimerValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
-        (mTrafficValue.parent as View).findViewById<TextView>(mTrafficValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
-        mProxyAddress.setTextColor(colors.TEXT_TERTIARY)
+        uiStatusText.setTextColor(if (appStatus.first == AppStatus.Running) theme.STATUS_ON else theme.STATUS_OFF)
+        uiTimerValue.setTextColor(theme.TEXT_MAIN)
+        uiTrafficValue.setTextColor(theme.TEXT_MAIN)
+        
+        // Helper to find labels
+        (uiTimerValue.parent as? LinearLayout)?.getChildAt(1)?.let { (it as TextView).setTextColor(theme.TEXT_SUB) }
+        (uiTrafficValue.parent as? LinearLayout)?.getChildAt(1)?.let { (it as TextView).setTextColor(theme.TEXT_SUB) }
+        
+        uiProxyAddress.setTextColor(theme.TEXT_DIM)
 
-        (mPowerButton.parent.parent as LinearLayout).getChildAt(2).background = GradientDrawable().apply {
-            setColor(colors.STATS_BG)
+        (uiPowerButton.parent.parent as LinearLayout).getChildAt(2).background = GradientDrawable().apply {
+            setColor(theme.PANEL_BG)
             cornerRadius = 50f
         }
 
-        mPowerButton.setColors(
-            if (appStatus.first == AppStatus.Running) colors.POWER_BUTTON_ON_BG else colors.POWER_BUTTON_OFF_BG,
-            colors.POWER_BUTTON_ICON,
-            animated
+        uiPowerButton.applyColors(
+            if (appStatus.first == AppStatus.Running) theme.BTN_ON_BG else theme.BTN_OFF_BG,
+            theme.BTN_ICON,
+            anim
         )
-        mTrafficGraphView.setColors(colors.GRAPH_GRID, colors.GRAPH_DOWN, colors.GRAPH_UP)
-        mThemeToggleButton.setImageDrawable(ThemeIconDrawable(colors.TEXT_SECONDARY, mIsDarkTheme))
+        uiTrafficGraph.applyColors(theme.GRAPH_GRID, theme.GRAPH_DL, theme.GRAPH_UL)
+        uiThemeToggle.setImageDrawable(ThemeIcon(theme.TEXT_SUB, isDarkThemeActive))
     }
 
-    private fun animateBackground(from: IntArray, to: IntArray) {
+    private fun runBgAnim(from: IntArray, to: IntArray) {
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 600
             addUpdateListener {
-                val fraction = it.animatedValue as Float
-                val newColors = intArrayOf(
-                    ArgbEvaluator().evaluate(fraction, from[0], to[0]) as Int,
-                    ArgbEvaluator().evaluate(fraction, from[1], to[1]) as Int
+                val f = it.animatedValue as Float
+                val c = intArrayOf(
+                    ArgbEvaluator().evaluate(f, from[0], to[0]) as Int,
+                    ArgbEvaluator().evaluate(f, from[1], to[1]) as Int
                 )
-                val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, newColors).apply {
+                val gd = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, c).apply {
                     gradientType = GradientDrawable.LINEAR_GRADIENT
                     setDither(true)
                 }
-                mMainContainer.background = gradient
+                uiContainer.background = gd
             }
             start()
         }
-        mCurrentGradientColors = to
+        currentThemeGradient = to
     }
 
     override fun onResume() {
         super.onResume()
         if (appStatus.first == AppStatus.Running) {
-            restoreSessionData()
-            mHandler.removeCallbacks(updateRunnable)
-            mHandler.post(updateRunnable)
+            loadSession()
+            mainHandler.removeCallbacks(statsUpdater)
+            mainHandler.post(statsUpdater)
         } else {
-            resetStatsUI()
+            resetSessionUI()
         }
-        updateUIState(false)
+        refreshUiState(false)
     }
 
     override fun onPause() {
         super.onPause()
-        mHandler.removeCallbacks(updateRunnable)
+        mainHandler.removeCallbacks(statsUpdater)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(receiver)
+        unregisterReceiver(statusReceiver)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
+    override fun onActivityResult(req: Int, res: Int, data: Intent?) {
+        super.onActivityResult(req, res, data)
+        if (req == REQ_VPN && res == RESULT_OK) {
             ServiceManager.start(this, Mode.VPN)
-            initSessionData()
+            newSession()
         }
     }
 
-    private fun startVpn() {
+    private fun performStart() {
         if (appStatus.first == AppStatus.Running) return
-        initSessionData()
-        val prefs = getPreferences()
-        when (prefs.mode()) {
+        newSession()
+        val p = getPreferences()
+        when (p.mode()) {
             Mode.VPN -> {
-                val intentPrepare = VpnService.prepare(this)
-                if (intentPrepare != null) {
-                    startActivityForResult(intentPrepare, REQUEST_VPN)
+                val i = VpnService.prepare(this)
+                if (i != null) {
+                    startActivityForResult(i, REQ_VPN)
                 } else {
                     ServiceManager.start(this, Mode.VPN)
                 }
             }
             Mode.Proxy -> ServiceManager.start(this, Mode.Proxy)
         }
-        mHandler.removeCallbacks(updateRunnable)
-        mHandler.post(updateRunnable)
+        mainHandler.removeCallbacks(statsUpdater)
+        mainHandler.post(statsUpdater)
     }
 
-    private fun stopVpn() {
+    private fun performStop() {
         ServiceManager.stop(this)
-        clearSessionData()
-        resetStatsUI()
-        mHandler.removeCallbacks(updateRunnable)
+        clearSession()
+        resetSessionUI()
+        mainHandler.removeCallbacks(statsUpdater)
     }
 
-    private fun initSessionData() {
+    private fun newSession() {
         val now = SystemClock.elapsedRealtime()
         val uid = Process.myUid()
-        mSessionStartTimestamp = now
-        mLastTimestamp = now
-        mStartRx = TrafficStats.getUidRxBytes(uid)
-        mStartTx = TrafficStats.getUidTxBytes(uid)
-        mLastRx = mStartRx
-        mLastTx = mStartTx
+        sessionStartTime = now
+        sessionLastTime = now
+        sessionStartRx = TrafficStats.getUidRxBytes(uid)
+        sessionStartTx = TrafficStats.getUidTxBytes(uid)
+        sessionLastRx = sessionStartRx
+        sessionLastTx = sessionStartTx
 
-        if (mStartRx < 0) mStartRx = 0
-        if (mStartTx < 0) mStartTx = 0
+        if (sessionStartRx < 0) sessionStartRx = 0
+        if (sessionStartTx < 0) sessionStartTx = 0
 
         getPreferences().edit()
-            .putLong(PREF_SESSION_START, mSessionStartTimestamp)
-            .putLong(PREF_SESSION_RX, mStartRx)
-            .putLong(PREF_SESSION_TX, mStartTx)
+            .putLong(KEY_SESS_START, sessionStartTime)
+            .putLong(KEY_SESS_RX, sessionStartRx)
+            .putLong(KEY_SESS_TX, sessionStartTx)
             .apply()
 
-        mTimerValue.text = "00:00:00"
-        mTrafficValue.text = "↓ 0 B   ↑ 0 B"
-        mTrafficGraphView.clear()
+        uiTimerValue.text = "00:00:00"
+        uiTrafficValue.text = "↓ 0 B   ↑ 0 B"
+        uiTrafficGraph.reset()
     }
 
-    private fun restoreSessionData() {
-        val prefs = getPreferences()
+    private fun loadSession() {
+        val p = getPreferences()
         val now = SystemClock.elapsedRealtime()
         val uid = Process.myUid()
 
-        if (prefs.contains(PREF_SESSION_START)) {
-            mSessionStartTimestamp = prefs.getLong(PREF_SESSION_START, now)
-            mStartRx = prefs.getLong(PREF_SESSION_RX, 0)
-            mStartTx = prefs.getLong(PREF_SESSION_TX, 0)
+        if (p.contains(KEY_SESS_START)) {
+            sessionStartTime = p.getLong(KEY_SESS_START, now)
+            sessionStartRx = p.getLong(KEY_SESS_RX, 0)
+            sessionStartTx = p.getLong(KEY_SESS_TX, 0)
 
-            if (mSessionStartTimestamp > now || (now - mSessionStartTimestamp) > 31536000000L) {
-                initSessionData()
+            if (sessionStartTime > now || (now - sessionStartTime) > 31536000000L) {
+                newSession()
             }
         } else {
-            initSessionData()
+            newSession()
         }
-        mLastTimestamp = now
-        mLastRx = TrafficStats.getUidRxBytes(uid)
-        mLastTx = TrafficStats.getUidTxBytes(uid)
+        sessionLastTime = now
+        sessionLastRx = TrafficStats.getUidRxBytes(uid)
+        sessionLastTx = TrafficStats.getUidTxBytes(uid)
     }
 
-    private fun clearSessionData() {
+    private fun clearSession() {
         getPreferences().edit()
-            .remove(PREF_SESSION_START)
-            .remove(PREF_SESSION_RX)
-            .remove(PREF_SESSION_TX)
+            .remove(KEY_SESS_START)
+            .remove(KEY_SESS_RX)
+            .remove(KEY_SESS_TX)
             .apply()
     }
 
-    private fun updateStats() {
+    private fun calculateStats() {
         val now = SystemClock.elapsedRealtime()
 
-        if (mSessionStartTimestamp == 0L || mSessionStartTimestamp > now) {
-            mTimerValue.text = "00:00:00"
+        if (sessionStartTime == 0L || sessionStartTime > now) {
+            uiTimerValue.text = "00:00:00"
             return
         }
 
-        var duration = now - mSessionStartTimestamp
-        if (duration < 0) duration = 0
+        var dur = now - sessionStartTime
+        if (dur < 0) dur = 0
 
-        val seconds = (duration / 1000) % 60
-        val minutes = (duration / (1000 * 60)) % 60
-        val hours = (duration / (1000 * 60 * 60))
-        mTimerValue.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+        val s = (dur / 1000) % 60
+        val m = (dur / (1000 * 60)) % 60
+        val h = (dur / (1000 * 60 * 60))
+        uiTimerValue.text = String.format(Locale.US, "%02d:%02d:%02d", h, m, s)
 
-        val currentRx = TrafficStats.getUidRxBytes(Process.myUid())
-        val currentTx = TrafficStats.getUidTxBytes(Process.myUid())
+        val curRx = TrafficStats.getUidRxBytes(Process.myUid())
+        val curTx = TrafficStats.getUidTxBytes(Process.myUid())
 
-        var totalRx = 0L
-        var totalTx = 0L
-        var downSpeed = 0f
-        var upSpeed = 0f
+        var totRx = 0L
+        var totTx = 0L
+        var dSpd = 0f
+        var uSpd = 0f
 
-        if (currentRx != TrafficStats.UNSUPPORTED.toLong() && currentTx != TrafficStats.UNSUPPORTED.toLong()) {
-            if (currentRx < mStartRx) mStartRx = currentRx
-            if (currentTx < mStartTx) mStartTx = currentTx
+        if (curRx != TrafficStats.UNSUPPORTED.toLong() && curTx != TrafficStats.UNSUPPORTED.toLong()) {
+            if (curRx < sessionStartRx) sessionStartRx = curRx
+            if (curTx < sessionStartTx) sessionStartTx = curTx
 
-            totalRx = max(0L, currentRx - mStartRx)
-            totalTx = max(0L, currentTx - mStartTx)
+            totRx = max(0L, curRx - sessionStartRx)
+            totTx = max(0L, curTx - sessionStartTx)
 
-            val timeDelta = (now - mLastTimestamp) / 1000.0f
-            if (timeDelta > 0) {
-                downSpeed = max(0f, (currentRx - mLastRx).toFloat()) / timeDelta
-                upSpeed = max(0f, (currentTx - mLastTx).toFloat()) / timeDelta
+            val dt = (now - sessionLastTime) / 1000.0f
+            if (dt > 0) {
+                dSpd = max(0f, (curRx - sessionLastRx).toFloat()) / dt
+                uSpd = max(0f, (curTx - sessionLastTx).toFloat()) / dt
             }
         }
 
-        mTrafficValue.text = "↓ ${formatBytes(totalRx)}   ↑ ${formatBytes(totalTx)}"
-        mTrafficGraphView.addTraffics(downSpeed, upSpeed)
-        mLastTimestamp = now
-        mLastRx = currentRx
-        mLastTx = currentTx
+        uiTrafficValue.text = "↓ ${fmtBytes(totRx)}   ↑ ${fmtBytes(totTx)}"
+        uiTrafficGraph.pushData(dSpd, uSpd)
+        sessionLastTime = now
+        sessionLastRx = curRx
+        sessionLastTx = curTx
     }
 
-    private fun resetStatsUI() {
-        mSessionStartTimestamp = 0
-        mStartRx = 0
-        mStartTx = 0
-        mTimerValue.text = "00:00:00"
-        mTrafficValue.text = "↓ 0 B   ↑ 0 B"
-        mTrafficGraphView.clear()
+    private fun resetSessionUI() {
+        sessionStartTime = 0
+        sessionStartRx = 0
+        sessionStartTx = 0
+        uiTimerValue.text = "00:00:00"
+        uiTrafficValue.text = "↓ 0 B   ↑ 0 B"
+        uiTrafficGraph.reset()
     }
 
-    private fun formatBytes(bytes: Long): String {
-        if (bytes < 0) return "0 B"
-        if (bytes < 1024) return "$bytes B"
-        val units = arrayOf("KB", "MB", "GB", "TB", "PB")
-        val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
-        return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups - 1])
+    private fun fmtBytes(b: Long): String {
+        if (b < 0) return "0 B"
+        if (b < 1024) return "$b B"
+        val u = arrayOf("KB", "MB", "GB", "TB")
+        val g = (Math.log10(b.toDouble()) / Math.log10(1024.0)).toInt()
+        return String.format(Locale.US, "%.1f %s", b / Math.pow(1024.0, g.toDouble()), u[g - 1])
     }
 
-    private fun formatSpeed(bytesPerSecond: Float): String {
-        if (bytesPerSecond < 1024) return "${bytesPerSecond.toInt()} B/s"
-        val units = arrayOf("KB/s", "MB/s", "GB/s")
-        val digitGroups = (Math.log10(bytesPerSecond.toDouble()) / Math.log10(1024.0)).toInt()
-        return String.format(Locale.US, "%.1f %s", bytesPerSecond / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups - 1])
+    private fun fmtSpeed(bps: Float): String {
+        if (bps < 1024) return "${bps.toInt()} B/s"
+        val u = arrayOf("KB/s", "MB/s", "GB/s")
+        val g = (Math.log10(bps.toDouble()) / Math.log10(1024.0)).toInt()
+        return String.format(Locale.US, "%.1f %s", bps / Math.pow(1024.0, g.toDouble()), u[g - 1])
     }
 
-    private fun updateUIState(animated: Boolean) {
-        val (status, _) = appStatus
-        val prefs = getPreferences()
-        val (ip, port) = prefs.getProxyIpAndPort()
-        mProxyAddress.text = "$ip:$port"
+    private fun refreshUiState(anim: Boolean) {
+        val (st, _) = appStatus
+        val p = getPreferences()
+        val (ip, port) = p.getProxyIpAndPort()
+        uiProxyAddress.text = "$ip:$port"
 
-        val isRunning = status == AppStatus.Running
-        mPowerButton.setActive(isRunning, animated)
+        val running = st == AppStatus.Running
+        uiPowerButton.setPowerState(running, anim)
 
-        if (isRunning) {
-            mStatusText.text = "АКТИВНО"
-            if (mSessionStartTimestamp == 0L) restoreSessionData()
-            mHandler.removeCallbacks(updateRunnable)
-            mHandler.post(updateRunnable)
+        if (running) {
+            uiStatusText.text = "АКТИВНО"
+            if (sessionStartTime == 0L) loadSession()
+            mainHandler.removeCallbacks(statsUpdater)
+            mainHandler.post(statsUpdater)
         } else {
-            mStatusText.text = "НЕ ПОДКЛЮЧЕНО"
-            resetStatsUI()
-            mHandler.removeCallbacks(updateRunnable)
+            uiStatusText.text = "НЕ ПОДКЛЮЧЕНО"
+            resetSessionUI()
+            mainHandler.removeCallbacks(statsUpdater)
         }
-        applyTheme(animated)
+        updateTheme(anim)
     }
 
     @SuppressLint("ViewConstructor")
-    inner class PowerButtonView(context: Context) : View(context) {
-        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-        }
-        private var iconPath = Path()
-        private var currentBgColor: Int = 0
-        private var isActive = false
-        private var iconProgress = 0f
+    inner class PowerButtonView(ctx: Context) : View(ctx) {
+        private val pBg = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pIcon = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+        private var curBg = 0
+        private var prog = 0f
+        private val pathIcon = Path()
+        private val pathCheck = Path()
 
-        fun setActive(active: Boolean, animated: Boolean) {
-            isActive = active
-            val targetProgress = if (active) 1f else 0f
-            if (animated) {
-                ValueAnimator.ofFloat(iconProgress, targetProgress).apply {
+        fun setPowerState(active: Boolean, anim: Boolean) {
+            val t = if (active) 1f else 0f
+            if (anim) {
+                ValueAnimator.ofFloat(prog, t).apply {
                     duration = 400
                     interpolator = DecelerateInterpolator()
                     addUpdateListener {
-                        iconProgress = it.animatedValue as Float
+                        prog = it.animatedValue as Float
                         invalidate()
                     }
                     start()
                 }
             } else {
-                iconProgress = targetProgress
+                prog = t
                 invalidate()
             }
         }
 
-        fun setColors(bgColor: Int, iconColor: Int, animated: Boolean) {
-            iconPaint.color = iconColor
-            if (animated) {
-                ValueAnimator.ofObject(ArgbEvaluator(), currentBgColor, bgColor).apply {
+        fun applyColors(bg: Int, icon: Int, anim: Boolean) {
+            pIcon.color = icon
+            if (anim) {
+                ValueAnimator.ofObject(ArgbEvaluator(), curBg, bg).apply {
                     duration = 600
                     addUpdateListener {
-                        currentBgColor = it.animatedValue as Int
+                        curBg = it.animatedValue as Int
                         invalidate()
                     }
                     start()
                 }
             } else {
-                currentBgColor = bgColor
+                curBg = bg
                 invalidate()
             }
         }
 
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
+        override fun onDraw(c: Canvas) {
+            super.onDraw(c)
             val w = width.toFloat()
             val h = height.toFloat()
             val cx = w / 2
             val cy = h / 2
-            val radius = w / 2
+            val r = w / 2
 
-            bgPaint.color = currentBgColor
-            canvas.drawCircle(cx, cy, radius, bgPaint)
-            iconPaint.strokeWidth = w / 20f
+            pBg.color = curBg
+            c.drawCircle(cx, cy, r, pBg)
+            pIcon.strokeWidth = w / 20f
 
-            val r = w / 3.2f
-            val lineLength = r * 0.65f
-            val startAngle = 110f + 110f * iconProgress
-            val sweepAngle = 320f - 220f * iconProgress
+            val ir = w / 3.2f
+            val sa = 110f + 110f * prog
+            val sw = 320f - 220f * prog
 
-            iconPath.reset()
-            iconPath.addArc(RectF(cx - r, cy - r, cx + r, cy + r), startAngle, sweepAngle)
-            canvas.drawPath(iconPath, iconPaint)
+            pathIcon.reset()
+            pathIcon.addArc(RectF(cx - ir, cy - ir, cx + ir, cy + ir), sa, sw)
+            c.drawPath(pathIcon, pIcon)
 
-            val lineYStart = cy - r
-            val lineYEnd = cy - r + lineLength
-            val checkMarkR = r * 0.8f
-            val checkMarkPath = Path()
-            checkMarkPath.moveTo(cx - checkMarkR / 2, cy)
-            checkMarkPath.lineTo(cx - checkMarkR / 6, cy + checkMarkR / 3)
-            checkMarkPath.lineTo(cx + checkMarkR / 2, cy - checkMarkR / 4)
+            val ly1 = cy - ir
+            val ly2 = cy - ir + (ir * 0.65f)
+            
+            pathCheck.reset()
+            val cr = ir * 0.8f
+            pathCheck.moveTo(cx - cr / 2, cy)
+            pathCheck.lineTo(cx - cr / 6, cy + cr / 3)
+            pathCheck.lineTo(cx + cr / 2, cy - cr / 4)
 
-            if (iconProgress < 1f) {
-                canvas.save()
-                canvas.rotate(360 * iconProgress, cx, cy)
-                canvas.drawLine(cx, lineYStart, cx, lineYEnd, iconPaint)
-                canvas.restore()
+            if (prog < 1f) {
+                c.save()
+                c.rotate(360 * prog, cx, cy)
+                c.drawLine(cx, ly1, cx, ly2, pIcon)
+                c.restore()
             }
 
-            if (iconProgress > 0f) {
-                iconPaint.alpha = (255 * iconProgress).toInt()
-                canvas.drawPath(checkMarkPath, iconPaint)
-                iconPaint.alpha = 255
+            if (prog > 0f) {
+                pIcon.alpha = (255 * prog).toInt()
+                c.drawPath(pathCheck, pIcon)
+                pIcon.alpha = 255
             }
         }
     }
 
     @SuppressLint("ViewConstructor")
-    inner class TrafficGraphView(context: Context) : View(context) {
-        private val downTraffics = ArrayDeque<Float>()
-        private val upTraffics = ArrayDeque<Float>()
-        private var maxTraffic = 1024f
-        private val maxPoints = 60
-
-        private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        private val upPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 24f }
+    inner class TrafficGraphView(ctx: Context) : View(ctx) {
+        private val qD = ArrayDeque<Float>()
+        private val qU = ArrayDeque<Float>()
+        private var maxVal = 1024f
+        private val count = 60
+        private val pG = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val pD = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+        private val pU = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+        private val pT = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 24f }
 
         init {
-            for (i in 0 until maxPoints) {
-                downTraffics.addLast(0f)
-                upTraffics.addLast(0f)
-            }
+            for (i in 0 until count) { qD.addLast(0f); qU.addLast(0f) }
         }
 
-        fun setColors(grid: Int, down: Int, up: Int) {
-            gridPaint.color = grid
-            downPaint.color = down
-            upPaint.color = up
-            textPaint.color = ColorUtils.setAlphaComponent(grid, 128)
+        fun applyColors(g: Int, d: Int, u: Int) {
+            pG.color = g
+            pD.color = d
+            pU.color = u
+            pT.color = ColorUtils.setAlphaComponent(g, 128)
             invalidate()
         }
 
-        fun addTraffics(down: Float, up: Float) {
-            downTraffics.removeFirst()
-            downTraffics.addLast(down)
-            upTraffics.removeFirst()
-            upTraffics.addLast(up)
-
-            val currentMax = max(downTraffics.maxOrNull() ?: 0f, upTraffics.maxOrNull() ?: 0f)
-            maxTraffic = max(maxTraffic * 0.95f, max(currentMax, 1024f))
+        fun pushData(d: Float, u: Float) {
+            qD.removeFirst(); qD.addLast(d)
+            qU.removeFirst(); qU.addLast(u)
+            val m = max(qD.maxOrNull() ?: 0f, qU.maxOrNull() ?: 0f)
+            maxVal = max(maxVal * 0.95f, max(m, 1024f))
             invalidate()
         }
 
-        fun clear() {
-            for (i in 0 until maxPoints) {
-                downTraffics[i] = 0f
-                upTraffics[i] = 0f
-            }
-            maxTraffic = 1024f
+        fun reset() {
+            for (i in 0 until count) { qD[i] = 0f; qU[i] = 0f }
+            maxVal = 1024f
             invalidate()
         }
 
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
+        override fun onDraw(c: Canvas) {
+            super.onDraw(c)
             val w = width.toFloat()
             val h = height.toFloat()
-            val strokeW = 4f
-            downPaint.strokeWidth = strokeW
-            upPaint.strokeWidth = strokeW
-            gridPaint.strokeWidth = 1f
+            pD.strokeWidth = 4f
+            pU.strokeWidth = 4f
+            pG.strokeWidth = 1f
 
-            val stepX = w / (maxPoints - 1)
+            val sx = w / (count - 1)
+            c.drawLine(0f, 0f, w, 0f, pG)
+            c.drawLine(0f, h, w, h, pG)
+            c.drawText(fmtSpeed(maxVal), 10f, pT.textSize + 5, pT)
+            c.drawText("0 B/s", 10f, h - 5, pT)
 
-            canvas.drawLine(0f, 0f, w, 0f, gridPaint)
-            canvas.drawLine(0f, h, w, h, gridPaint)
-            canvas.drawText(formatSpeed(maxTraffic), 10f, textPaint.textSize + 5, textPaint)
-            canvas.drawText("0 B/s", 10f, h - 5, textPaint)
-
-            val downPath = Path()
-            val upPath = Path()
-            downTraffics.forEachIndexed { i, value ->
-                val x = i * stepX
-                val y = h - (value / maxTraffic * h)
-                if (i == 0) downPath.moveTo(x, y) else downPath.lineTo(x, y)
-            }
-            upTraffics.forEachIndexed { i, value ->
-                val x = i * stepX
-                val y = h - (value / maxTraffic * h)
-                if (i == 0) upPath.moveTo(x, y) else upPath.lineTo(x, y)
-            }
-            canvas.drawPath(downPath, downPaint)
-            canvas.drawPath(upPath, upPaint)
+            val pd = Path(); val pu = Path()
+            qD.forEachIndexed { i, v -> val x = i * sx; val y = h - (v / maxVal * h); if (i == 0) pd.moveTo(x, y) else pd.lineTo(x, y) }
+            qU.forEachIndexed { i, v -> val x = i * sx; val y = h - (v / maxVal * h); if (i == 0) pu.moveTo(x, y) else pu.lineTo(x, y) }
+            c.drawPath(pd, pD)
+            c.drawPath(pu, pU)
         }
     }
 
-    inner class ThemeIconDrawable(color: Int, private val isDark: Boolean) : Drawable() {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE }
-        private val sunPath = Path()
-        private val moonPath = Path()
+    inner class ThemeIcon(c: Int, private val dark: Boolean) : Drawable() {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = c; style = Paint.Style.STROKE }
+        private val pS = Path()
+        private val pM = Path()
 
-        override fun draw(canvas: Canvas) {
+        override fun draw(cv: Canvas) {
             val w = bounds.width().toFloat()
             val h = bounds.height().toFloat()
             val cx = w / 2
             val cy = h / 2
-            val strokeWidth = w / 12f
-            paint.strokeWidth = strokeWidth
+            p.strokeWidth = w / 12f
+            val r = min(w, h) / 4f
 
-            val radius = min(w, h) / 4f
-
-            canvas.save()
-            val rotation = if (isDark) 0f else 180f
-            canvas.rotate(rotation, cx, cy)
-
-            moonPath.reset()
-            moonPath.addCircle(cx, cy, radius, Path.Direction.CW)
-            moonPath.addCircle(cx - radius / 2, cy - radius / 2, radius, Path.Direction.CW)
-            canvas.clipPath(moonPath)
-
-            sunPath.reset()
-            sunPath.addCircle(cx, cy, radius, Path.Direction.CW)
-
-            paint.style = Paint.Style.FILL
-            canvas.drawPath(sunPath, paint)
-            canvas.restore()
+            cv.save()
+            cv.rotate(if (dark) 0f else 180f, cx, cy)
+            pM.reset()
+            pM.addCircle(cx, cy, r, Path.Direction.CW)
+            pM.addCircle(cx - r / 2, cy - r / 2, r, Path.Direction.CW)
+            cv.clipPath(pM)
+            pS.reset()
+            pS.addCircle(cx, cy, r, Path.Direction.CW)
+            p.style = Paint.Style.FILL
+            cv.drawPath(pS, p)
+            cv.restore()
         }
 
-        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-        override fun setColorFilter(colorFilter: ColorFilter?) { paint.colorFilter = colorFilter }
-        @Deprecated("Deprecated in Java", ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat"))
+        override fun setAlpha(a: Int) { p.alpha = a }
+        override fun setColorFilter(f: ColorFilter?) { p.colorFilter = f }
+        @Deprecated("Deprecated in Java")
         override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 }
