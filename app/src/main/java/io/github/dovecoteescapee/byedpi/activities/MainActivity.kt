@@ -118,16 +118,13 @@ class MainActivity : Activity() {
             window.isNavigationBarContrastEnforced = false
         }
 
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or 
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        )
+        hideSystemUI()
 
         mainContainer = FrameLayout(this)
         
         earthImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            scaleX = 1.15f
             adjustViewBounds = true
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -280,6 +277,11 @@ class MainActivity : Activity() {
 
         setContentView(mainContainer)
 
+        mainContainer.setOnApplyWindowInsetsListener { v, insets ->
+            v.setPadding(0, insets.systemWindowInsetTop, 0, 0)
+            insets
+        }
+
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
             addAction(STOPPED_BROADCAST)
@@ -322,6 +324,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        hideSystemUI()
         if (appStatus.first == AppStatus.Running) {
             restoreSessionData()
             updateUIState()
@@ -331,6 +334,21 @@ class MainActivity : Activity() {
             resetStatsUI()
             updateUIState()
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemUI()
+    }
+
+    private fun hideSystemUI() {
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        )
     }
 
     override fun onPause() {
@@ -529,6 +547,7 @@ class MainActivity : Activity() {
             earthImage.setImageResource(R.mipmap.earthoff)
             
             resetStatsUI()
+            
             handler.removeCallbacks(updateRunnable)
         }
     }
