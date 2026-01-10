@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Список архитектур для разделения
 val abis = setOf("armeabi-v7a", "arm64-v8a")
 
 android {
@@ -20,12 +21,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters.addAll(abis)
-        }
+        // ndk.abiFilters удален, чтобы не конфликтовать со splits
         
-        // Оставляем только нужные языки для экономии места
-        resourceConfigurations.addAll(listOf("en", "ru"))
+        // Новый способ фильтрации языков (вместо устаревшего resourceConfigurations)
+        androidResources {
+            localeFilters.addAll(listOf("en", "ru"))
+        }
     }
 
     signingConfigs {
@@ -76,12 +77,13 @@ android {
         includeInBundle = false
     }
 
+    // Настройки разделения (Splits)
     splits {
         abi {
             isEnable = true
             reset()
             include(*abis.toTypedArray())
-            isUniversalApk = false // ОТКЛЮЧИЛИ УНИВЕРСАЛЬНЫЙ
+            isUniversalApk = false // Только раздельные файлы
         }
     }
 }
