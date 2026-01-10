@@ -29,10 +29,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
@@ -43,9 +41,9 @@ import kotlin.math.max
 class MainActivity : Activity() {
     private lateinit var mainContainer: FrameLayout
     private lateinit var contentLayout: LinearLayout
-    private lateinit var earthImage: ImageView 
     private lateinit var statusText: TextView
     private lateinit var powerButton: ImageButton
+    
     private lateinit var statsContainer: LinearLayout
     private lateinit var timerLabel: TextView
     private lateinit var timerValue: TextView
@@ -107,45 +105,33 @@ class MainActivity : Activity() {
         isTvMode = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION || 
                    !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.BLACK
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            )
+        } else {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
         }
-
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or 
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        )
 
         mainContainer = FrameLayout(this)
         
-        earthImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            scaleX = 1.10f // Было 1.15
-            adjustViewBounds = true
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.BOTTOM
-                bottomMargin = -50 // Опускаем чуть ниже
-            }
-        }
-
         contentLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
 
         statusText = TextView(this).apply {
-            textSize = if (isTvMode) 16f else 18f // Было 22f
+            textSize = if (isTvMode) 18f else 22f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
@@ -277,13 +263,11 @@ class MainActivity : Activity() {
         contentLayout.addView(statsContainer)
         contentLayout.addView(proxyAddress)
 
-        mainContainer.addView(earthImage)
         mainContainer.addView(contentLayout)
-
         setContentView(mainContainer)
 
         mainContainer.setOnApplyWindowInsetsListener { v, insets ->
-            v.setPadding(0, insets.systemWindowInsetTop, 0, 0)
+            v.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
             insets
         }
 
@@ -361,8 +345,8 @@ class MainActivity : Activity() {
         if (appStatus.first == AppStatus.Running) return
         
         initSessionData()
-        val prefs = getPreferences()
 
+        val prefs = getPreferences()
         when (prefs.mode()) {
             Mode.VPN -> {
                 val intentPrepare = VpnService.prepare(this)
@@ -390,6 +374,7 @@ class MainActivity : Activity() {
         startTimestamp = SystemClock.elapsedRealtime()
         startRx = TrafficStats.getUidRxBytes(Process.myUid())
         startTx = TrafficStats.getUidTxBytes(Process.myUid())
+
         if (startRx < 0) startRx = 0
         if (startTx < 0) startTx = 0
         
@@ -435,6 +420,7 @@ class MainActivity : Activity() {
             timerValue.text = "00:00:00"
             return
         }
+
         var duration = now - startTimestamp
         if (duration < 0) duration = 0
         
@@ -517,12 +503,12 @@ class MainActivity : Activity() {
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(true)
-            earthImage.setImageResource(R.mipmap.earthonn)
             
             if (startTimestamp == 0L) restoreSessionData()
+
             handler.removeCallbacks(updateRunnable)
             handler.post(updateRunnable)
-            
+
         } else {
             statusText.text = "ГОТОВ К РАБОТЕ"
             statusText.setTextColor(Color.parseColor("#80FFFFFF"))
@@ -533,8 +519,6 @@ class MainActivity : Activity() {
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(false)
-            earthImage.setImageResource(R.mipmap.earthoff)
-            
             resetStatsUI()
             
             handler.removeCallbacks(updateRunnable)
