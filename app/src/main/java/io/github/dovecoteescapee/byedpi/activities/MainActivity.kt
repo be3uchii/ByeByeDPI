@@ -118,19 +118,24 @@ class MainActivity : Activity() {
             window.isNavigationBarContrastEnforced = false
         }
 
-        hideSystemUI()
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or 
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        )
 
         mainContainer = FrameLayout(this)
         
         earthImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            scaleX = 1.15f
+            scaleX = 1.10f // Было 1.15
             adjustViewBounds = true
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.BOTTOM
+                bottomMargin = -50 // Опускаем чуть ниже
             }
         }
 
@@ -140,7 +145,7 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            textSize = if (isTvMode) 18f else 22f
+            textSize = if (isTvMode) 16f else 18f // Было 22f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#A0A0A0"))
             gravity = Gravity.CENTER
@@ -324,7 +329,6 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        hideSystemUI()
         if (appStatus.first == AppStatus.Running) {
             restoreSessionData()
             updateUIState()
@@ -334,21 +338,6 @@ class MainActivity : Activity() {
             resetStatsUI()
             updateUIState()
         }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemUI()
-    }
-
-    private fun hideSystemUI() {
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
     }
 
     override fun onPause() {
