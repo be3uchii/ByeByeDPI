@@ -1,5 +1,6 @@
 package io.github.dovecoteescapee.byedpi.activities
 
+import android.Manifest
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
@@ -61,8 +62,62 @@ class MainActivity : Activity() {
     private var lastRx: Long = 0
     private var lastTx: Long = 0
 
-    private var currentBackgroundGradient: GradientDrawable? = null
+    private var currentGradientColors: IntArray? = null
     private var isDarkTheme = true
+
+    interface ThemeColors {
+        val BG_OFF: IntArray
+        val BG_ON: IntArray
+        val STATUS_ON: Int
+        val STATUS_OFF: Int
+        val TEXT_PRIMARY: Int
+        val TEXT_SECONDARY: Int
+        val TEXT_TERTIARY: Int
+        val POWER_BUTTON_ON_BG: Int
+        val POWER_BUTTON_OFF_BG: Int
+        val POWER_BUTTON_ICON: Int
+        val STATS_BG: Int
+        val DIVIDER: Int
+        val GRAPH_GRID: Int
+        val GRAPH_DOWN: Int
+        val GRAPH_UP: Int
+    }
+
+    private object DarkTheme : ThemeColors {
+        override val BG_OFF = intArrayOf(Color.parseColor("#FF21212B"), Color.parseColor("#FF14141C"))
+        override val BG_ON = intArrayOf(Color.parseColor("#FF002B22"), Color.parseColor("#FF001C16"))
+        override val STATUS_ON = Color.parseColor("#FF30D9A9")
+        override val STATUS_OFF = Color.parseColor("#99FFFFFF")
+        override val TEXT_PRIMARY = Color.WHITE
+        override val TEXT_SECONDARY = Color.parseColor("#80FFFFFF")
+        override val TEXT_TERTIARY = Color.parseColor("#50FFFFFF")
+        override val POWER_BUTTON_ON_BG = Color.parseColor("#FF00B894")
+        override val POWER_BUTTON_OFF_BG = Color.parseColor("#20FFFFFF")
+        override val POWER_BUTTON_ICON = Color.WHITE
+        override val STATS_BG = Color.parseColor("#15FFFFFF")
+        override val DIVIDER = Color.parseColor("#20FFFFFF")
+        override val GRAPH_GRID = Color.parseColor("#20FFFFFF")
+        override val GRAPH_DOWN = Color.parseColor("#FF30D9A9")
+        override val GRAPH_UP = Color.parseColor("#FF54A0FF")
+    }
+
+    private object LightTheme : ThemeColors {
+        override val BG_OFF = intArrayOf(Color.parseColor("#FFE8EAF6"), Color.parseColor("#FFD9DBE9"))
+        override val BG_ON = intArrayOf(Color.parseColor("#FFD9F5E5"), Color.parseColor("#FFC8EAD5"))
+        override val STATUS_ON = Color.parseColor("#FF1E8A63")
+        override val STATUS_OFF = Color.parseColor("#8A000000")
+        override val TEXT_PRIMARY = Color.parseColor("#DE000000")
+        override val TEXT_SECONDARY = Color.parseColor("#8A000000")
+        override val TEXT_TERTIARY = Color.parseColor("#61000000")
+        override val POWER_BUTTON_ON_BG = Color.parseColor("#FF26A69A")
+        override val POWER_BUTTON_OFF_BG = Color.parseColor("#1A000000")
+        override val POWER_BUTTON_ICON = Color.WHITE
+        override val STATS_BG = Color.parseColor("#08000000")
+        override val DIVIDER = Color.parseColor("#1A000000")
+        override val GRAPH_GRID = Color.parseColor("#1A000000")
+        override val GRAPH_DOWN = Color.parseColor("#FF00796B")
+        override val GRAPH_UP = Color.parseColor("#FF4285F4")
+    }
 
     companion object {
         private const val REQUEST_VPN = 1
@@ -72,42 +127,6 @@ class MainActivity : Activity() {
         private const val PREF_SESSION_RX = "session_rx_start"
         private const val PREF_SESSION_TX = "session_tx_start"
         private const val PREF_UI_THEME = "ui_theme_dark"
-
-        object DarkTheme {
-            val BG_OFF = intArrayOf(Color.parseColor("#FF21212B"), Color.parseColor("#FF14141C"))
-            val BG_ON = intArrayOf(Color.parseColor("#FF002B22"), Color.parseColor("#FF001C16"))
-            val STATUS_ON = Color.parseColor("#FF30D9A9")
-            val STATUS_OFF = Color.parseColor("#99FFFFFF")
-            val TEXT_PRIMARY = Color.WHITE
-            val TEXT_SECONDARY = Color.parseColor("#80FFFFFF")
-            val TEXT_TERTIARY = Color.parseColor("#50FFFFFF")
-            val POWER_BUTTON_ON_BG = Color.parseColor("#FF00B894")
-            val POWER_BUTTON_OFF_BG = Color.parseColor("#20FFFFFF")
-            val POWER_BUTTON_ICON = Color.WHITE
-            val STATS_BG = Color.parseColor("#15FFFFFF")
-            val DIVIDER = Color.parseColor("#20FFFFFF")
-            val GRAPH_GRID = Color.parseColor("#20FFFFFF")
-            val GRAPH_DOWN = Color.parseColor("#FF30D9A9")
-            val GRAPH_UP = Color.parseColor("#FF54A0FF")
-        }
-
-        object LightTheme {
-            val BG_OFF = intArrayOf(Color.parseColor("#FFE8EAF6"), Color.parseColor("#FFD9DBE9"))
-            val BG_ON = intArrayOf(Color.parseColor("#FFD9F5E5"), Color.parseColor("#FFC8EAD5"))
-            val STATUS_ON = Color.parseColor("#FF1E8A63")
-            val STATUS_OFF = Color.parseColor("#8A000000")
-            val TEXT_PRIMARY = Color.parseColor("#DE000000")
-            val TEXT_SECONDARY = Color.parseColor("#8A000000")
-            val TEXT_TERTIARY = Color.parseColor("#61000000")
-            val POWER_BUTTON_ON_BG = Color.parseColor("#FF26A69A")
-            val POWER_BUTTON_OFF_BG = Color.parseColor("#1A000000")
-            val POWER_BUTTON_ICON = Color.WHITE
-            val STATS_BG = Color.parseColor("#08000000")
-            val DIVIDER = Color.parseColor("#1A000000")
-            val GRAPH_GRID = Color.parseColor("#1A000000")
-            val GRAPH_DOWN = Color.parseColor("#FF00796B")
-            val GRAPH_UP = Color.parseColor("#FF4285F4")
-        }
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -340,7 +359,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyTheme(animated: Boolean) {
-        val colors = if (isDarkTheme) DarkTheme else LightTheme
+        val colors: ThemeColors = if (isDarkTheme) DarkTheme else LightTheme
         val bgColors = if (appStatus.first == AppStatus.Running) colors.BG_ON else colors.BG_OFF
         val statusBarIsLight = !isDarkTheme
         val navBarIsLight = !isDarkTheme
@@ -355,23 +374,22 @@ class MainActivity : Activity() {
             window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         }
 
-        val targetGradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, bgColors).apply {
-            gradientType = GradientDrawable.LINEAR_GRADIENT
-            dither = true
-        }
-
-        if (animated && currentBackgroundGradient != null) {
-            animateBackground(currentBackgroundGradient!!.colors, bgColors)
+        if (animated && currentGradientColors != null) {
+            animateBackground(currentGradientColors!!, bgColors)
         } else {
-            mainContainer.background = targetGradient
+            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, bgColors).apply {
+                gradientType = GradientDrawable.LINEAR_GRADIENT
+                setDither(true)
+            }
+            mainContainer.background = gradient
+            currentGradientColors = bgColors
         }
-        currentBackgroundGradient = targetGradient
 
         statusText.setTextColor(if (appStatus.first == AppStatus.Running) colors.STATUS_ON else colors.STATUS_OFF)
         timerValue.setTextColor(colors.TEXT_PRIMARY)
         trafficValue.setTextColor(colors.TEXT_PRIMARY)
-        (timerValue.parent as View).findViewById<TextView>(timerValue.id - 1).setTextColor(colors.TEXT_SECONDARY)
-        (trafficValue.parent as View).findViewById<TextView>(trafficValue.id - 1).setTextColor(colors.TEXT_SECONDARY)
+        (timerValue.parent as View).findViewById<TextView>(timerValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
+        (trafficValue.parent as View).findViewById<TextView>(trafficValue.id - 1)?.setTextColor(colors.TEXT_SECONDARY)
         proxyAddress.setTextColor(colors.TEXT_TERTIARY)
 
         (powerButton.parent.parent as LinearLayout).getChildAt(2).background = GradientDrawable().apply {
@@ -397,15 +415,16 @@ class MainActivity : Activity() {
                     ArgbEvaluator().evaluate(fraction, from[0], to[0]) as Int,
                     ArgbEvaluator().evaluate(fraction, from[1], to[1]) as Int
                 )
-                mainContainer.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, newColors).apply {
+                val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, newColors).apply {
                     gradientType = GradientDrawable.LINEAR_GRADIENT
-                    dither = true
+                    setDither(true)
                 }
+                mainContainer.background = gradient
             }
             start()
         }
+        currentGradientColors = to
     }
-
 
     override fun onResume() {
         super.onResume()
@@ -549,8 +568,8 @@ class MainActivity : Activity() {
 
             val timeDelta = (now - lastTimestamp) / 1000.0f
             if (timeDelta > 0) {
-                downSpeed = max(0, (currentRx - lastRx)) / timeDelta
-                upSpeed = max(0, (currentTx - lastTx)) / timeDelta
+                downSpeed = max(0f, (currentRx - lastRx).toFloat()) / timeDelta
+                upSpeed = max(0f, (currentTx - lastTx).toFloat()) / timeDelta
             }
         }
 
@@ -577,7 +596,7 @@ class MainActivity : Activity() {
         val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
         return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups - 1])
     }
-    
+
     private fun formatSpeed(bytesPerSecond: Float): String {
         if (bytesPerSecond < 1024) return "${bytesPerSecond.toInt()} B/s"
         val units = arrayOf("KB/s", "MB/s", "GB/s")
@@ -589,7 +608,7 @@ class MainActivity : Activity() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
-        proxyAddress.text = "$ip:$port
+        proxyAddress.text = "$ip:$port"
 
         val isRunning = status == AppStatus.Running
         powerButton.setActive(isRunning, animated)
@@ -709,7 +728,7 @@ class MainActivity : Activity() {
         private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
         private val upPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 24f; }
+        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 24f }
 
         init {
             for (i in 0 until maxPoints) {
@@ -778,7 +797,7 @@ class MainActivity : Activity() {
             canvas.drawPath(upPath, upPaint)
         }
     }
-    
+
     inner class ThemeIconDrawable(color: Int, private val isDark: Boolean) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE }
         private val sunPath = Path()
@@ -793,19 +812,19 @@ class MainActivity : Activity() {
             paint.strokeWidth = strokeWidth
 
             val radius = min(w, h) / 4f
-            
+
             canvas.save()
-            val rotation = if(isDark) 0f else 180f
+            val rotation = if (isDark) 0f else 180f
             canvas.rotate(rotation, cx, cy)
 
             moonPath.reset()
             moonPath.addCircle(cx, cy, radius, Path.Direction.CW)
             moonPath.addCircle(cx - radius / 2, cy - radius / 2, radius, Path.Direction.CW)
             canvas.clipPath(moonPath)
-            
+
             sunPath.reset()
             sunPath.addCircle(cx, cy, radius, Path.Direction.CW)
-            
+
             paint.style = Paint.Style.FILL
             canvas.drawPath(sunPath, paint)
             canvas.restore()
