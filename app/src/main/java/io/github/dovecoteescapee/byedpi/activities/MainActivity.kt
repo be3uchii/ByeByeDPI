@@ -28,6 +28,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -51,6 +52,8 @@ class MainActivity : Activity() {
     private lateinit var trafficLabel: TextView
     private lateinit var trafficValue: TextView
     private lateinit var proxyAddress: TextView
+    private lateinit var versionText: TextView
+    private lateinit var connectionType: TextView
     
     private var isTvMode = false
     private val handler = Handler(Looper.getMainLooper())
@@ -63,17 +66,17 @@ class MainActivity : Activity() {
         private const val REQUEST_VPN = 1
         private const val REQUEST_NOTIFICATIONS = 3
 
-        private val OFF_COLORS = intArrayOf(
-            Color.parseColor("#0F0F1A"),
+        private val OFF_GRADIENT = intArrayOf(
             Color.parseColor("#0A0A15"),
             Color.parseColor("#050510"),
+            Color.parseColor("#020208"),
             Color.BLACK
         )
 
-        private val ON_COLORS = intArrayOf(
-            Color.parseColor("#001F16"),
-            Color.parseColor("#00150F"),
-            Color.parseColor("#000C08"),
+        private val ON_GRADIENT = intArrayOf(
+            Color.parseColor("#001A12"),
+            Color.parseColor("#00110C"),
+            Color.parseColor("#000906"),
             Color.BLACK
         )
         
@@ -109,21 +112,25 @@ class MainActivity : Activity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            )
-        } else {
+            window.navigationBarColor = Color.TRANSPARENT
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
+        } else {
+            window.navigationBarColor = Color.TRANSPARENT
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or 
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
         }
 
         mainContainer = FrameLayout(this)
@@ -133,17 +140,34 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         }
 
-        statusText = TextView(this).apply {
-            textSize = if (isTvMode) 20f else 26f
-            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-            setTextColor(Color.parseColor("#C0C0C0"))
-            gravity = Gravity.CENTER
-            setPadding(0, if (isTvMode) 60 else 220, 0, 0)
-            letterSpacing = 0.05f
+        versionText = TextView(this).apply {
+            text = "v1.0"
+            textSize = 10f
+            setTextColor(Color.parseColor("#30FFFFFF"))
+            gravity = Gravity.TOP or Gravity.END
+            setPadding(0, 50, 40, 0)
+            alpha = 0.7f
         }
 
-        val btnSize = if (isTvMode) 240 else 420
-        val btnMargin = if (isTvMode) 40 else 120
+        statusText = TextView(this).apply {
+            textSize = if (isTvMode) 22f else 28f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            setTextColor(Color.parseColor("#D0D0D0"))
+            gravity = Gravity.CENTER
+            setPadding(0, if (isTvMode) 80 else 240, 0, 0)
+            letterSpacing = 0.02f
+        }
+
+        connectionType = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.parseColor("#60FFFFFF"))
+            gravity = Gravity.CENTER
+            setPadding(0, 8, 0, 0)
+            alpha = 0.8f
+        }
+
+        val btnSize = if (isTvMode) 260 else 460
+        val btnMargin = if (isTvMode) 50 else 140
 
         powerButton = ImageButton(this).apply {
             isFocusable = true
@@ -154,29 +178,39 @@ class MainActivity : Activity() {
                     val paint = Paint().apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = if (isTvMode) 10f else 16f
+                        strokeWidth = if (isTvMode) 12f else 18f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
                         strokeJoin = Paint.Join.ROUND
-                        setShadowLayer(20f, 0f, 0f, Color.parseColor("#60FFFFFF"))
                     }
+                    
+                    val glowPaint = Paint().apply {
+                        color = Color.parseColor("#80FFFFFF")
+                        style = Paint.Style.STROKE
+                        strokeWidth = if (isTvMode) 24f else 36f
+                        isAntiAlias = true
+                        strokeCap = Paint.Cap.ROUND
+                        alpha = 40
+                    }
+                    
                     val w = bounds.width().toFloat()
                     val h = bounds.height().toFloat()
                     val cx = w / 2
                     val cy = h / 2
-                    val r = w / 3.6f
+                    val r = w / 4f
                     
-                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 280f, 340f, false, paint)
+                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 285f, 330f, false, glowPaint)
+                    canvas.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), 285f, 330f, false, paint)
                     
                     val linePaint = Paint().apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = if (isTvMode) 10f else 16f
+                        strokeWidth = if (isTvMode) 12f else 18f
                         isAntiAlias = true
                         strokeCap = Paint.Cap.ROUND
-                        setShadowLayer(20f, 0f, 0f, Color.parseColor("#60FFFFFF"))
                     }
-                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.3f, linePaint)
+                    
+                    canvas.drawLine(cx, cy - r, cx, cy - r * 0.25f, linePaint)
                 }
                 override fun setAlpha(alpha: Int) {}
                 override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
@@ -185,7 +219,8 @@ class MainActivity : Activity() {
             setImageDrawable(icon)
             
             background = createButtonBackground(false)
-            elevation = 32f
+            elevation = 40f
+            translationZ = 20f
             stateListAnimator = null
             
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
@@ -200,67 +235,69 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#10FFFFFF"))
-                cornerRadius = 48f
-                setStroke(1, Color.parseColor("#20FFFFFF"))
+                setColor(Color.parseColor("#0AFFFFFF"))
+                cornerRadius = 56f
+                setStroke(1, Color.parseColor("#15FFFFFF"))
             }
             
-            setPadding(60, 40, 60, 40)
-            elevation = 16f
+            setPadding(70, 50, 70, 50)
+            elevation = 24f
+            translationZ = 12f
             
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
-                width = if (isTvMode) 460 else 680
+                width = if (isTvMode) 500 else 720
             }
         }
 
         timerLabel = TextView(this).apply {
-            text = "СЕССИЯ"
-            textSize = 12f
-            setTextColor(Color.parseColor("#80FFFFFF"))
+            text = "ДЛИТЕЛЬНОСТЬ СЕССИИ"
+            textSize = 11f
+            setTextColor(Color.parseColor("#90FFFFFF"))
             gravity = Gravity.CENTER
-            letterSpacing = 0.3f
-            setPadding(0,0,0,8)
+            letterSpacing = 0.4f
+            setPadding(0,0,0,12)
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
 
         timerValue = TextView(this).apply {
             text = "00:00:00"
-            textSize = 32f
+            textSize = 36f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.create("monospace", android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, 20)
-            setShadowLayer(12f, 0f, 0f, Color.parseColor("#40000000"))
+            setPadding(0, 0, 0, 28)
+            letterSpacing = 1.2f
         }
         
         val divider = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(120, 3).apply {
+            layoutParams = LinearLayout.LayoutParams(140, 4).apply {
                 gravity = Gravity.CENTER
-                setMargins(0, 0, 0, 20)
+                setMargins(0, 0, 0, 28)
             }
-            setBackgroundColor(Color.parseColor("#30FFFFFF"))
+            setBackgroundColor(Color.parseColor("#35FFFFFF"))
         }
 
         trafficLabel = TextView(this).apply {
-            text = "ТРАФИК"
-            textSize = 12f
-            setTextColor(Color.parseColor("#80FFFFFF"))
+            text = "ОБЪЁМ ТРАФИКА"
+            textSize = 11f
+            setTextColor(Color.parseColor("#90FFFFFF"))
             gravity = Gravity.CENTER
-            letterSpacing = 0.3f
-            setPadding(0,0,0,8)
+            letterSpacing = 0.4f
+            setPadding(0,0,0,12)
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
 
         trafficValue = TextView(this).apply {
             text = "↓ 0 MB   ↑ 0 MB"
-            textSize = 18f
-            setTextColor(Color.parseColor("#F0F0F0"))
+            textSize = 20f
+            setTextColor(Color.parseColor("#F8F8F8"))
             gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            letterSpacing = 0.3f
         }
 
         statsContainer.addView(timerLabel)
@@ -270,25 +307,35 @@ class MainActivity : Activity() {
         statsContainer.addView(trafficValue)
 
         proxyAddress = TextView(this).apply {
-            textSize = 14f
-            setTextColor(Color.parseColor("#60FFFFFF"))
+            textSize = 13f
+            setTextColor(Color.parseColor("#70FFFFFF"))
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 50
+            params.topMargin = 60
             layoutParams = params
         }
 
         contentLayout.addView(statusText)
+        contentLayout.addView(connectionType)
         contentLayout.addView(powerButton)
         contentLayout.addView(statsContainer)
         contentLayout.addView(proxyAddress)
 
+        mainContainer.addView(versionText)
         mainContainer.addView(contentLayout)
         setContentView(mainContainer)
 
         mainContainer.setOnApplyWindowInsetsListener { v, insets ->
-            v.setPadding(0, insets.systemWindowInsetTop, 0, max(insets.systemWindowInsetBottom, 0))
+            v.setPadding(0, insets.systemWindowInsetTop, 0, 0)
+            
+            val bottomInset = insets.systemWindowInsetBottom
+            if (bottomInset > 0) {
+                val layoutParams = contentLayout.layoutParams as FrameLayout.LayoutParams
+                layoutParams.bottomMargin = bottomInset + 20
+                contentLayout.layoutParams = layoutParams
+            }
+            
             insets
         }
 
@@ -308,7 +355,15 @@ class MainActivity : Activity() {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             powerButton.isClickable = false
             
-            val scaleAnim = AnimationUtils.loadAnimation(this@MainActivity, android.R.anim.fade_in)
+            val scaleAnim = android.view.animation.ScaleAnimation(
+                0.95f, 1f, 0.95f, 1f,
+                android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+                android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+            ).apply {
+                duration = 200
+                interpolator = DecelerateInterpolator()
+            }
+            
             powerButton.startAnimation(scaleAnim)
             
             val (status, _) = appStatus
@@ -346,6 +401,9 @@ class MainActivity : Activity() {
             resetStatsUI()
             updateUIState()
         }
+        
+        val fadeIn = AnimationUtils.loadAnimation(this, android.R.anim.fade_in)
+        contentLayout.startAnimation(fadeIn)
     }
 
     override fun onPause() {
@@ -489,19 +547,19 @@ class MainActivity : Activity() {
     }
 
     private fun createButtonBackground(isRunning: Boolean): Drawable {
-        val color = if (isRunning) Color.parseColor("#00FF88") else Color.parseColor("#40FFFFFF")
-        val glowColor = if (isRunning) Color.parseColor("#2000FF88") else Color.TRANSPARENT
+        val color = if (isRunning) Color.parseColor("#00FFAA") else Color.parseColor("#50FFFFFF")
+        val glowColor = if (isRunning) Color.parseColor("#1500FFAA") else Color.TRANSPARENT
         
         val normal = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(glowColor)
-            setStroke(if (isRunning) 10 else 6, color)
+            setStroke(if (isRunning) 12 else 8, color)
         }
         
         val pressed = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (isRunning) Color.parseColor("#4000FF88") else Color.parseColor("#30FFFFFF"))
-            setStroke(if (isRunning) 10 else 6, color)
+            setColor(if (isRunning) Color.parseColor("#3000FFAA") else Color.parseColor("#20FFFFFF"))
+            setStroke(if (isRunning) 12 else 8, color)
         }
         
         return StateListDrawable().apply {
@@ -515,20 +573,27 @@ class MainActivity : Activity() {
         val (status, _) = appStatus
         val prefs = getPreferences()
         val (ip, port) = prefs.getProxyIpAndPort()
+        val mode = prefs.mode()
 
         proxyAddress.text = "$ip:$port"
+        connectionType.text = when (mode) {
+            Mode.VPN -> "VPN РЕЖИМ"
+            Mode.Proxy -> "ПРОКСИ РЕЖИМ"
+        }
 
         if (status == AppStatus.Running) {
-            statusText.text = "АКТИВНО"
-            statusText.setTextColor(Color.parseColor("#00FF88"))
+            statusText.text = "ЗАЩИТА АКТИВНА"
+            statusText.setTextColor(Color.parseColor("#00FFAA"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_COLORS)
+            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, ON_GRADIENT)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
             gradient.setDither(true)
+            gradient.alpha = 230
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(true)
-            powerButton.elevation = 48f
+            powerButton.elevation = 60f
+            powerButton.translationZ = 30f
             
             if (startTimestamp == 0L) restoreSessionData()
 
@@ -536,22 +601,36 @@ class MainActivity : Activity() {
             handler.post(updateRunnable)
 
         } else {
-            statusText.text = "ГОТОВ К РАБОТЕ"
-            statusText.setTextColor(Color.parseColor("#A0A0A0"))
+            statusText.text = "ГОТОВ К ИСПОЛЬЗОВАНИЮ"
+            statusText.setTextColor(Color.parseColor("#B0B0B0"))
             
-            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_COLORS)
+            val gradient = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, OFF_GRADIENT)
             gradient.setGradientType(GradientDrawable.LINEAR_GRADIENT)
             gradient.setDither(true)
+            gradient.alpha = 230
             mainContainer.background = gradient
             
             powerButton.background = createButtonBackground(false)
-            powerButton.elevation = 32f
+            powerButton.elevation = 40f
+            powerButton.translationZ = 20f
             resetStatsUI()
             
             handler.removeCallbacks(updateRunnable)
         }
         
         val fadeAnim = AnimationUtils.loadAnimation(this, android.R.anim.fade_in)
+        fadeAnim.duration = 300
         statusText.startAnimation(fadeAnim)
+        connectionType.startAnimation(fadeAnim)
+        
+        val scaleAnim = android.view.animation.ScaleAnimation(
+            0.98f, 1f, 0.98f, 1f,
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+        ).apply {
+            duration = 250
+            interpolator = DecelerateInterpolator()
+        }
+        powerButton.startAnimation(scaleAnim)
     }
 }
