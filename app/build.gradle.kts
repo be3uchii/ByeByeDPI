@@ -24,9 +24,19 @@ android {
             abiFilters.addAll(abis)
         }
         
-        // Убрали жесткий фильтр по dpi, оставили только языки.
-        // Это безопаснее, R8 все равно удалит неиспользуемое.
+        // Оставляем только нужные языки для экономии места
         resourceConfigurations.addAll(listOf("en", "ru"))
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "android_secure"
+            keyAlias = "release_key"
+            keyPassword = "android_secure"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
     }
 
     buildFeatures {
@@ -39,11 +49,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Без подписи (GitHub сам соберет unsigned, если ключа нет)
-        }
-        debug {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -75,7 +81,7 @@ android {
             isEnable = true
             reset()
             include(*abis.toTypedArray())
-            isUniversalApk = true
+            isUniversalApk = false // ОТКЛЮЧИЛИ УНИВЕРСАЛЬНЫЙ
         }
     }
 }
